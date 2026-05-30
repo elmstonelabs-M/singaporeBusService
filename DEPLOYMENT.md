@@ -75,11 +75,21 @@ After pulling new code on the server:
 ./scripts/release_prod.sh
 ```
 
+Default release rule:
+
+- backup: enabled
+- PostgreSQL and Redis restart: disabled
+- static data sync: disabled
+- database migrations: enabled
+- API rebuild/restart: enabled
+- health verification: enabled
+
 Useful release options:
 
 ```bash
 ./scripts/release_prod.sh --skip-backup
-./scripts/release_prod.sh --skip-sync-static-data
+./scripts/release_prod.sh --with-infra
+./scripts/release_prod.sh --with-sync-static-data
 ./scripts/release_prod.sh --health-url https://trackbusapi.sgbtt.top/health
 ```
 
@@ -88,7 +98,7 @@ For GitHub Actions based release automation, see:
 - [RELEASE_RUNBOOK.md](D:\developwork\singaporeBusService\RELEASE_RUNBOOK.md)
 - [.github/workflows/README.md](D:\developwork\singaporeBusService\.github\workflows\README.md)
 
-If the update only changes application code and does not require infra or bootstrap changes, you can use:
+If the update only changes application code and does not require infra or static data changes, you can use:
 
 ```bash
 ./scripts/deploy/up_api.sh
@@ -105,12 +115,21 @@ For public production use, place Nginx or Caddy in front of port `8000`, termina
 - PostgreSQL should always use a non-default `POSTGRES_PASSWORD`
 - Redis should always use a non-default `REDIS_PASSWORD`
 
-## 8. Important operational note
+## 8. Static data sync rule
 
-The repository includes a scheduler definition in `app/tasks/scheduler.py`, but it is not wired into the API process. For now, use cron if you want recurring nightly syncs, for example:
+The repository includes the intended schedule in `app/tasks/scheduler.py`, but it is not
+wired into the API process. Use host cron on the VPS.
+
+Production rule:
+
+- run static data sync every Wednesday at `03:00` in `Asia/Singapore`
+- if fetched static data is unchanged, keep the existing version string
+- if fetched static data changed, update rows and write a new version
+
+Recommended cron entry:
 
 ```bash
-10 3 * * * cd /home/<deploy_user>/<project_name> && docker compose --env-file .env.production -f docker-compose.prod.yml run --rm api python -m app.tasks.sync_lta_data >> /var/log/<project_name>-sync.log 2>&1
+0 3 * * 3 cd /home/<deploy_user>/<project_name> && docker compose --env-file .env.production -f docker-compose.prod.yml run --rm --build api python -m app.tasks.sync_lta_data >> /home/<deploy_user>/<project_name>/logs/static-sync.log 2>&1
 ```
 
 ## 9. Backup and recovery

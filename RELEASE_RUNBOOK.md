@@ -21,9 +21,9 @@ chmod +x scripts/release_prod.sh scripts/deploy/*.sh scripts/backup/*.sh
 Default release flow:
 
 1. Create backups
-2. Start PostgreSQL and Redis
+2. Leave PostgreSQL and Redis unchanged
 3. Apply Alembic migrations
-4. Sync project-specific LTA static data
+4. Leave project-specific LTA static data unchanged
 5. Build and start the API
 6. Verify container status and `GET /health`
 7. Review `./logs/app.log` on the server if you want the request/response trace
@@ -49,10 +49,16 @@ Skip backups:
 ./scripts/release_prod.sh --skip-backup
 ```
 
-Skip the project-specific static data sync:
+Start PostgreSQL and Redis during this release only when needed:
 
 ```bash
-./scripts/release_prod.sh --skip-sync-static-data
+./scripts/release_prod.sh --with-infra
+```
+
+Run the project-specific static data sync during this release only when needed:
+
+```bash
+./scripts/release_prod.sh --with-sync-static-data
 ```
 
 Override the health check URL:
@@ -94,6 +100,15 @@ Static data bootstrap only:
 ./scripts/deploy/sync_static_data.sh
 ```
 
+Weekly static data sync rule:
+
+```bash
+0 3 * * 3 cd /home/<deploy_user>/<project_name> && docker compose --env-file .env.production -f docker-compose.prod.yml run --rm --build api python -m app.tasks.sync_lta_data >> /home/<deploy_user>/<project_name>/logs/static-sync.log 2>&1
+```
+
+If the upstream static dataset does not change, `sync_lta_data` keeps the existing version
+unchanged. A new version is written only when the package checksum changes.
+
 Verification only:
 
 ```bash
@@ -115,6 +130,7 @@ When a deployment-only conversation says `release singaporeBusService` or `publi
    - whether backup ran
    - whether migrations ran
    - whether static data sync ran
+   - whether PostgreSQL/Redis were left unchanged or restarted
    - health check result
    - any manual follow-up needed
 

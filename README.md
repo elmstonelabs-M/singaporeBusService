@@ -77,7 +77,27 @@ Standard server-side release:
 ./scripts/release_prod.sh
 ```
 
-This runs backup, deployment, and health verification in one flow. For the full operator checklist, see [RELEASE_RUNBOOK.md](D:\developwork\singaporeBusService\RELEASE_RUNBOOK.md).
+Default release rule:
+
+- create backups
+- leave PostgreSQL and Redis unchanged
+- apply Alembic migrations
+- leave static data unchanged
+- build and start the API
+- verify health
+
+Optional release paths:
+
+```bash
+./scripts/release_prod.sh --with-infra
+./scripts/release_prod.sh --with-sync-static-data
+```
+
+Static LTA data should be refreshed by a weekly server-side cron job at Wednesday 03:00
+Asia/Singapore. If the fetched package checksum does not change, the backend keeps the
+existing static data version unchanged.
+
+For the full operator checklist, see [RELEASE_RUNBOOK.md](D:\developwork\singaporeBusService\RELEASE_RUNBOOK.md).
 
 Production HTTP request/response logs are written to `./logs/app.log` on the server,
 which maps to `/app/logs/app.log` inside the container.
