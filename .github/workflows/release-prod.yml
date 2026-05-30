@@ -1,0 +1,92 @@
+name: Release Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_backup:
+        description: Skip pre-release backup
+        required: false
+        default: false
+        type: boolean
+      skip_sync_static_data:
+        description: Skip static data sync
+        required: false
+        default: false
+        type: boolean
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: singapore-bus-service-prod
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Trust server host key
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+        run: |
+          ssh-keyscan -p "${PROD_SSH_PORT}" "${PROD_SSH_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Sync repository to server
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+        run: |
+          rsync -az --delete \
+            -e "ssh -p ${PROD_SSH_PORT}" \
+            --exclude ".env.production" \
+            --exclude "backups/" \
+            --exclude ".git/" \
+            --exclude ".github/" \
+            ./ "${PROD_SSH_USER}@${PROD_SSH_HOST}:${PROD_DEPLOY_PATH}/"
+
+      - name: Run production release
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+          PROD_DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
+          PROD_HEALTH_URL: ${{ secrets.PROD_HEALTH_URL }}
+          SKIP_BACKUP: ${{ github.event.inputs.skip_backup || 'false' }}
+          SKIP_SYNC_STATIC_DATA: ${{ github.event.inputs.skip_sync_static_data || 'false' }}
+        run: |
+          remote_release_command="./scripts/release_prod.sh"
+
+          if [ "${SKIP_BACKUP}" = "true" ]; then
+            remote_release_command="${remote_release_command} --skip-backup"
+          fi
+
+          if [ "${SKIP_SYNC_STATIC_DATA}" = "true" ]; then
+            remote_release_command="${remote_release_command} --skip-sync-static-data"
+          fi
+
+          if [ -n "${PROD_HEALTH_URL}" ]; then
+            remote_release_command="${remote_release_command} --health-url ${PROD_HEALTH_URL}"
+          fi
+
+          ssh -p "${PROD_SSH_PORT}" "${PROD_SSH_USER}@${PROD_SSH_HOST}" "
+            set -euo pipefail
+            cd '${PROD_DEPLOY_PATH}'
+            chmod +x scripts/release_prod.sh scripts/deploy/*.sh scripts/backup/*.sh
+            ${remote_release_command}
+          "

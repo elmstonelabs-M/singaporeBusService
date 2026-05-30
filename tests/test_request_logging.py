@@ -1,0 +1,44 @@
+import asyncio
+import logging
+import tempfile
+from pathlib import Path
+
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+
+from app.core.logging import configure_logging, http_logging_middleware
+
+
+def test_http_logging_writes_request_and_response() -> None:
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir:
+        log_path = Path(tmp_dir) / "app.log"
+        configure_logging("INFO", str(log_path))
+
+        app = FastAPI()
+        app.middleware("http")(http_logging_middleware)
+
+        @app.post("/echo")
+        async def echo(payload: dict[str, str]) -> dict[str, str]:
+            return {"received": payload["message"]}
+
+        async def _run() -> None:
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://testserver",
+            ) as client:
+                response = await client.post("/echo?q=1", json={"message": "hello"})
+
+            assert response.status_code == 200
+            assert response.json() == {"received": "hello"}
+
+        asyncio.run(_run())
+
+        log_text = log_path.read_text(encoding="utf-8")
+        assert '"path": "/echo"' in log_text
+        assert '"query": "q=1"' in log_text
+        assert '"request_body": {"message": "hello"}' in log_text
+        assert '"response_body": {"received": "hello"}' in log_text
+        assert '"status_code": 200' in log_text
+        assert '"duration_ms":' in log_text
+
+        logging.shutdown()

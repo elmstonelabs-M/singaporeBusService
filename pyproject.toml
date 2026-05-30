@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "singapore-bus-service"
+version = "0.1.0"
+description = "Backend service for a Singapore real-time bus arrival app."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14.0",
+    "apscheduler>=3.10.4",
+    "asyncpg>=0.30.0",
+    "fastapi>=0.115.0",
+    "greenlet>=3.1.1",
+    "httpx>=0.28.1",
+    "orjson>=3.10.0",
+    "pydantic-settings>=2.6.1",
+    "pydantic>=2.10.0",
+    "redis>=5.2.1",
+    "sqlalchemy>=2.0.36",
+    "tenacity>=9.0.0",
+    "uvicorn[standard]>=0.32.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "aiosqlite>=0.20.0",
+    "fakeredis>=2.26.2",
+    "mypy>=1.13.0",
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.24.0",
+    "respx>=0.22.0",
+    "ruff>=0.8.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+ignore = ["B008", "UP046"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+strict_optional = true
+disallow_untyped_defs = true
+plugins = []
+ignore_missing_imports = true
