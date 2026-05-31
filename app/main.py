@@ -1,8 +1,9 @@
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -66,18 +67,31 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    database_status = "ok"
+    return {
+        "status": "ok",
+        "version": settings.app_version,
+        "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    }
+
+
+@app.get("/health/full")
+async def full_health() -> JSONResponse:
+    database_ok = True
     try:
         async with SessionLocal() as session:
             await session.execute(text("SELECT 1"))
     except Exception:
-        database_status = "error"
+        database_ok = False
 
-    redis_status = "ok" if await get_cache_service().ping() else "error"
+    try:
+        redis_ok = await get_cache_service().ping()
+    except Exception:
+        redis_ok = False
 
-    if database_status == "error" or redis_status == "error":
-        raise HTTPException(
-            status_code=503,
-            detail={"status": "degraded", "database": database_status, "redis": redis_status},
-        )
-    return {"status": "ok", "database": database_status, "redis": redis_status}
+    payload = {
+        "status": "ok" if database_ok and redis_ok else "error",
+        "database": database_ok,
+        "redis": redis_ok,
+        "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+    }
+    return JSONResponse(status_code=200 if database_ok and redis_ok else 503, content=payload)

@@ -1,6 +1,35 @@
 from app.models.bus_stop import BusStop
 
 
+async def test_health_endpoint(api_client) -> None:
+    response = await api_client.get("/health")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["version"]
+    assert body["timestamp"].endswith("Z")
+    assert "database" not in body
+    assert "redis" not in body
+
+
+async def test_full_health_endpoint(api_client, monkeypatch) -> None:
+    class HealthyCacheService:
+        async def ping(self) -> bool:
+            return True
+
+    monkeypatch.setattr("app.main.get_cache_service", lambda: HealthyCacheService())
+
+    response = await api_client.get("/health/full")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["database"] is True
+    assert body["redis"] is True
+    assert body["timestamp"].endswith("Z")
+
+
 async def test_arrivals_endpoint(api_client, db_session, lta_client) -> None:
     db_session.add(
         BusStop(
