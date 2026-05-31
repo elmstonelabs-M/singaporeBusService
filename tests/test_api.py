@@ -13,6 +13,13 @@ async def test_health_endpoint(api_client) -> None:
     assert "redis" not in body
 
 
+async def test_health_head_endpoint(api_client) -> None:
+    response = await api_client.head("/health")
+
+    assert response.status_code == 200
+    assert response.text == ""
+
+
 async def test_full_health_endpoint(api_client, monkeypatch) -> None:
     class HealthyCacheService:
         async def ping(self) -> bool:
@@ -28,6 +35,13 @@ async def test_full_health_endpoint(api_client, monkeypatch) -> None:
     assert body["database"] is True
     assert body["redis"] is True
     assert body["timestamp"].endswith("Z")
+
+
+async def test_full_health_head_endpoint(api_client) -> None:
+    response = await api_client.head("/health/full")
+
+    assert response.status_code == 200
+    assert response.text == ""
 
 
 async def test_arrivals_endpoint(api_client, db_session, lta_client) -> None:

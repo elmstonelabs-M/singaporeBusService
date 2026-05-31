@@ -3,7 +3,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -74,6 +74,11 @@ async def health() -> dict[str, str]:
     }
 
 
+@app.head("/health")
+async def health_head() -> Response:
+    return Response(status_code=200)
+
+
 @app.get("/health/full")
 async def full_health() -> JSONResponse:
     database_ok = True
@@ -95,3 +100,8 @@ async def full_health() -> JSONResponse:
         "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
     }
     return JSONResponse(status_code=200 if database_ok and redis_ok else 503, content=payload)
+
+
+@app.head("/health/full")
+async def full_health_head() -> Response:
+    return Response(status_code=200)
