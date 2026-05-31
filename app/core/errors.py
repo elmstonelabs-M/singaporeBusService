@@ -14,3 +14,13 @@ class ExternalServiceError(AppError):
         status_code: int = 503,
     ) -> None:
         super().__init__(code=code, message=message, status_code=status_code)
+
+
+class RateLimitError(AppError):
+    def __init__(
+        self,
+        code: str,
+        message: str = "Too many requests.",
+        status_code: int = 429,
+    ) -> None:
+        super().__init__(code=code, message=message, status_code=status_code)

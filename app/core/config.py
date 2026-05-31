@@ -52,6 +52,14 @@ class Settings(BaseSettings):
         default=15,
         alias="DEFAULT_HOME_CACHE_TTL_SECONDS",
     )
+    feedback_daily_limit_per_client_id: int = Field(
+        default=6,
+        alias="FEEDBACK_DAILY_LIMIT_PER_CLIENT_ID",
+    )
+    feedback_daily_limit_per_ip: int = Field(
+        default=18,
+        alias="FEEDBACK_DAILY_LIMIT_PER_IP",
+    )
     dataset_storage_dir: str = Field(default="datasets", alias="DATASET_STORAGE_DIR")
 
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")

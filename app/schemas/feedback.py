@@ -23,6 +23,7 @@ class FeedbackCreate(BaseModel):
 class FeedbackView(BaseModel):
     id: UUID
     user_device_id: str | None = None
+    client_ip: str | None = None
     contact_email: str | None = None
     category: str | None = None
     subject: str | None = None

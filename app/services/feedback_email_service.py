@@ -32,6 +32,7 @@ class FeedbackEmailService:
                     f"Feedback ID: {feedback.id}",
                     f"Created At: {feedback.created_at.isoformat()}",
                     f"User Device ID: {feedback.user_device_id or ''}",
+                    f"Client IP: {feedback.client_ip or ''}",
                     f"Contact Email: {feedback.contact_email or ''}",
                     f"Category: {feedback.category or ''}",
                     f"Subject: {feedback.subject or ''}",

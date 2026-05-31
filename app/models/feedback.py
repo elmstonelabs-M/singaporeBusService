@@ -12,6 +12,7 @@ class Feedback(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     user_device_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    client_ip: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     subject: Mapped[str | None] = mapped_column(String(255), nullable=True)

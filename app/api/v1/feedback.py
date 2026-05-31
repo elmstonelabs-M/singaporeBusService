@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 
 from app.api.deps import get_feedback_service
 from app.schemas.common import ApiResponse, MetaResponse
 from app.schemas.feedback import FeedbackCreate, FeedbackCreatePayload, FeedbackView
 from app.services.feedback_service import FeedbackService
+from app.utils.request import get_client_ip
 
 router = APIRouter(prefix="/feedback", tags=["feedback"])
 
@@ -49,10 +50,11 @@ router = APIRouter(prefix="/feedback", tags=["feedback"])
     },
 )
 async def create_feedback(
+    request: Request,
     payload: FeedbackCreate,
     service: FeedbackService = Depends(get_feedback_service),
 ) -> ApiResponse[FeedbackCreatePayload]:
-    feedback = await service.create_feedback(payload)
+    feedback = await service.create_feedback(payload, client_ip=get_client_ip(request))
     view = FeedbackView.model_validate(feedback, from_attributes=True)
     return ApiResponse(
         data=FeedbackCreatePayload(feedback=view),
