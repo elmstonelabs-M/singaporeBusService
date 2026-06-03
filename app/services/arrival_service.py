@@ -329,6 +329,9 @@ class ArrivalService:
         if value in (None, ""):
             return None
         try:
-            return float(value)
+            parsed = float(value)
         except (TypeError, ValueError):
             return None
+        if parsed == 0.0:
+            return None
+        return parsed

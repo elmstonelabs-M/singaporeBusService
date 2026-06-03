@@ -161,3 +161,37 @@ async def test_arrival_service_returns_null_vehicle_coordinates_when_unavailable
     assert arrival["visit_number"] == 1
     assert arrival["vehicle_latitude"] is None
     assert arrival["vehicle_longitude"] is None
+
+
+async def test_arrival_service_returns_null_vehicle_coordinates_when_zero(
+    cache_service,
+    db_session,
+) -> None:
+    payload = {
+        "Services": [
+            {
+                "ServiceNo": "150",
+                "Operator": "SBST",
+                "NextBus": {
+                    "EstimatedArrival": "2026-05-19T21:12:00+08:00",
+                    "Latitude": "0.0",
+                    "Longitude": "0.0",
+                    "Load": "SEA",
+                    "Feature": "WAB",
+                    "Type": "SD",
+                    "Monitored": 1,
+                },
+                "NextBus2": {},
+                "NextBus3": {},
+            }
+        ]
+    }
+    client = StubLTAClient(payload)
+    service = ArrivalService(lta_client=client, cache=cache_service, db=db_session)
+
+    result = await service.get_arrivals("83139")
+
+    arrival = result["data"]["services"][0]["arrivals"][0]
+    assert arrival["visit_number"] == 1
+    assert arrival["vehicle_latitude"] is None
+    assert arrival["vehicle_longitude"] is None
