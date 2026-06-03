@@ -182,6 +182,7 @@ Frontend display suggestions:
   - `3 = NextBus3`
 - `vehicle_latitude` and `vehicle_longitude` can be used by the route detail layer to place up to 3 live vehicles approximately on the stop sequence
 - if `vehicle_latitude` or `vehicle_longitude` is `null`, frontend should skip map placement for that vehicle
+- backend now normalizes invalid vehicle coordinates to `null`, including empty values and upstream `0.0 / 0.0`, so frontend does not need a separate `(0, 0)` guard
 
 ### 4. Home payload
 
