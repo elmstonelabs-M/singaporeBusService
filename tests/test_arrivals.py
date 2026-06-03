@@ -21,6 +21,8 @@ async def test_arrival_service_uses_cache(cache_service, db_session) -> None:
                 "Operator": "SBST",
                 "NextBus": {
                     "EstimatedArrival": "2026-05-19T21:12:00+08:00",
+                    "Latitude": "1.300123",
+                    "Longitude": "103.900456",
                     "Load": "SEA",
                     "Feature": "WAB",
                     "Type": "DD",
@@ -38,11 +40,17 @@ async def test_arrival_service_uses_cache(cache_service, db_session) -> None:
     second = await service.get_arrivals("83139")
 
     assert first["data"]["services"][0]["arrivals"][0]["load_color"] == "green"
+    assert first["data"]["services"][0]["arrivals"][0]["visit_number"] == 1
+    assert first["data"]["services"][0]["arrivals"][0]["vehicle_latitude"] == 1.300123
+    assert first["data"]["services"][0]["arrivals"][0]["vehicle_longitude"] == 103.900456
     assert second["data"]["services"][0]["service_no"] == "36"
     assert client.calls == 1
 
 
-async def test_arrival_service_filters_service_from_station_cache(cache_service, db_session) -> None:
+async def test_arrival_service_filters_service_from_station_cache(
+    cache_service,
+    db_session,
+) -> None:
     payload = {
         "Services": [
             {
@@ -121,3 +129,35 @@ async def test_batch_arrivals_groups_requests_by_bus_stop(cache_service, db_sess
     assert [item["service_no"] for item in result["data"]["items"]] == ["36", "106"]
     assert all(item["status"] == "OK" for item in result["data"]["items"])
     assert client.calls == 1
+
+
+async def test_arrival_service_returns_null_vehicle_coordinates_when_unavailable(
+    cache_service,
+    db_session,
+) -> None:
+    payload = {
+        "Services": [
+            {
+                "ServiceNo": "36",
+                "Operator": "SBST",
+                "NextBus": {
+                    "EstimatedArrival": "2026-05-19T21:12:00+08:00",
+                    "Load": "SEA",
+                    "Feature": "WAB",
+                    "Type": "DD",
+                    "Monitored": 1,
+                },
+                "NextBus2": {},
+                "NextBus3": {},
+            }
+        ]
+    }
+    client = StubLTAClient(payload)
+    service = ArrivalService(lta_client=client, cache=cache_service, db=db_session)
+
+    result = await service.get_arrivals("83139")
+
+    arrival = result["data"]["services"][0]["arrivals"][0]
+    assert arrival["visit_number"] == 1
+    assert arrival["vehicle_latitude"] is None
+    assert arrival["vehicle_longitude"] is None

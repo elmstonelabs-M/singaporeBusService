@@ -141,6 +141,7 @@ Response shape:
         "arrivals": [
           {
             "sequence": 1,
+            "visit_number": 1,
             "display": "3m",
             "minutes": 3,
             "status": "ARRIVING",
@@ -151,7 +152,9 @@ Response shape:
             "bus_type": "DD",
             "bus_type_label": "Double Deck",
             "monitored": true,
-            "estimated_arrival": "2026-05-20T14:33:00+08:00"
+            "estimated_arrival": "2026-05-20T14:33:00+08:00",
+            "vehicle_latitude": 1.30123,
+            "vehicle_longitude": 103.84002
           }
         ]
       }
@@ -173,6 +176,12 @@ Frontend display suggestions:
 - use `wheelchair` for accessibility icon
 - use `is_favorite` for favorite toggle state
 - if `favorite_id` is present, frontend can remove or reorder without another lookup
+- `visit_number` maps LTA arrival slots directly:
+  - `1 = NextBus`
+  - `2 = NextBus2`
+  - `3 = NextBus3`
+- `vehicle_latitude` and `vehicle_longitude` can be used by the route detail layer to place up to 3 live vehicles approximately on the stop sequence
+- if `vehicle_latitude` or `vehicle_longitude` is `null`, frontend should skip map placement for that vehicle
 
 ### 4. Home payload
 

@@ -48,6 +48,7 @@ router = APIRouter(prefix="/bus-stops", tags=["bus-stops"])
                                     "arrivals": [
                                         {
                                             "sequence": 1,
+                                            "visit_number": 1,
                                             "display": "3m",
                                             "minutes": 3,
                                             "status": "ARRIVING",
@@ -61,6 +62,8 @@ router = APIRouter(prefix="/bus-stops", tags=["bus-stops"])
                                             "estimated_arrival": (
                                                 "2026-05-20T14:33:00+08:00"
                                             ),
+                                            "vehicle_latitude": 1.30123,
+                                            "vehicle_longitude": 103.84002,
                                         }
                                     ],
                                 }

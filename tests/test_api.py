@@ -65,6 +65,8 @@ async def test_arrivals_endpoint(api_client, db_session, lta_client) -> None:
                     "Operator": "SBST",
                     "NextBus": {
                         "EstimatedArrival": "2026-05-19T21:12:00+08:00",
+                        "Latitude": "1.300123",
+                        "Longitude": "103.900456",
                         "Load": "SEA",
                         "Feature": "WAB",
                         "Type": "DD",
@@ -88,6 +90,9 @@ async def test_arrivals_endpoint(api_client, db_session, lta_client) -> None:
     assert body["data"]["display_name"] == "Opp Example Stop"
     assert body["data"]["services"][0]["service_no"] == "36"
     assert body["data"]["services"][0]["favorite_id"] is None
+    assert body["data"]["services"][0]["arrivals"][0]["visit_number"] == 1
+    assert body["data"]["services"][0]["arrivals"][0]["vehicle_latitude"] == 1.300123
+    assert body["data"]["services"][0]["arrivals"][0]["vehicle_longitude"] == 103.900456
 
 
 async def test_arrivals_endpoint_uses_alias_and_favorite_without_cache_leak(

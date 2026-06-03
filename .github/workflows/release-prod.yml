@@ -8,8 +8,13 @@ on:
         required: false
         default: false
         type: boolean
-      skip_sync_static_data:
-        description: Skip static data sync
+      with_sync_static_data:
+        description: Run static data sync during release
+        required: false
+        default: false
+        type: boolean
+      with_infra:
+        description: Start PostgreSQL and Redis during release
         required: false
         default: false
         type: boolean
@@ -68,7 +73,8 @@ jobs:
           PROD_DEPLOY_PATH: ${{ secrets.PROD_DEPLOY_PATH }}
           PROD_HEALTH_URL: ${{ secrets.PROD_HEALTH_URL }}
           SKIP_BACKUP: ${{ github.event.inputs.skip_backup || 'false' }}
-          SKIP_SYNC_STATIC_DATA: ${{ github.event.inputs.skip_sync_static_data || 'false' }}
+          WITH_SYNC_STATIC_DATA: ${{ github.event.inputs.with_sync_static_data || 'false' }}
+          WITH_INFRA: ${{ github.event.inputs.with_infra || 'false' }}
         run: |
           remote_release_command="./scripts/release_prod.sh"
 
@@ -76,8 +82,12 @@ jobs:
             remote_release_command="${remote_release_command} --skip-backup"
           fi
 
-          if [ "${SKIP_SYNC_STATIC_DATA}" = "true" ]; then
-            remote_release_command="${remote_release_command} --skip-sync-static-data"
+          if [ "${WITH_INFRA}" = "true" ]; then
+            remote_release_command="${remote_release_command} --with-infra"
+          fi
+
+          if [ "${WITH_SYNC_STATIC_DATA}" = "true" ]; then
+            remote_release_command="${remote_release_command} --with-sync-static-data"
           fi
 
           if [ -n "${PROD_HEALTH_URL}" ]; then

@@ -32,6 +32,13 @@ class BusType(StrEnum):
 
 class ArrivalItem(BaseModel):
     sequence: int = Field(description="Arrival slot index from LTA: 1, 2, or 3.")
+    visit_number: int | None = Field(
+        default=None,
+        description=(
+            "Vehicle order from LTA arrival slots: 1 for NextBus, "
+            "2 for NextBus2, 3 for NextBus3."
+        ),
+    )
     display: str | None = Field(
         default=None,
         description="Short user-facing ETA text such as Arr, 3m, or Not In Operation.",
@@ -71,6 +78,14 @@ class ArrivalItem(BaseModel):
     estimated_arrival: datetime | None = Field(
         default=None,
         description="Estimated arrival timestamp in ISO 8601 format.",
+    )
+    vehicle_latitude: float | None = Field(
+        default=None,
+        description="Current vehicle latitude from LTA when available.",
+    )
+    vehicle_longitude: float | None = Field(
+        default=None,
+        description="Current vehicle longitude from LTA when available.",
     )
 
 

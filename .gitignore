@@ -15,6 +15,8 @@ test.db
 logs/
 backups/
 .ssh-temp/
+id_ed25519
+id_ed25519.pub
 tmp*/
 .DS_Store
 Thumbs.db

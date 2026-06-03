@@ -182,11 +182,16 @@ class ArrivalService:
                 arrivals.append(
                     {
                         "sequence": index,
+                        "visit_number": index,
                         **normalized_time,
                         **map_load(bus.get("Load")),
                         "wheelchair": is_wheelchair_accessible(bus.get("Feature")),
                         **map_bus_type(bus.get("Type")),
                         "monitored": bus.get("Monitored") == 1,
+                        "vehicle_latitude": self._parse_vehicle_coordinate(bus.get("Latitude")),
+                        "vehicle_longitude": self._parse_vehicle_coordinate(
+                            bus.get("Longitude")
+                        ),
                     }
                 )
 
@@ -199,6 +204,7 @@ class ArrivalService:
                 arrivals.append(
                     {
                         "sequence": 1,
+                        "visit_number": 1,
                         "display": (
                             "No Est. Available" if is_operating else "Not In Operation"
                         ),
@@ -212,6 +218,8 @@ class ArrivalService:
                         "bus_type_label": None,
                         "monitored": False,
                         "estimated_arrival": None,
+                        "vehicle_latitude": None,
+                        "vehicle_longitude": None,
                     }
                 )
 
@@ -315,3 +323,12 @@ class ArrivalService:
     @staticmethod
     def _last_good_key(bus_stop_code: str) -> str:
         return f"arrival:last_good:{bus_stop_code}"
+
+    @staticmethod
+    def _parse_vehicle_coordinate(value: Any) -> float | None:
+        if value in (None, ""):
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
