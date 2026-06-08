@@ -11,6 +11,8 @@ import uuid
 
 from fastapi import Request, Response
 
+from app.utils.request import get_client_ip
+
 MAX_LOG_LINE_LENGTH = 20_000
 LOGGER_NAME = "app.http"
 
@@ -69,6 +71,7 @@ async def http_logging_middleware(
 ) -> Response:
     logger = logging.getLogger(LOGGER_NAME)
     request_id = request.headers.get("x-request-id") or f"req_{uuid.uuid4().hex[:12]}"
+    client_ip = get_client_ip(request)
     started_at = perf_counter()
     request_body = _decode_payload(await request.body(), request.headers.get("content-type"))
 
@@ -83,7 +86,7 @@ async def http_logging_middleware(
                     "method": request.method,
                     "path": request.url.path,
                     "query": request.url.query or None,
-                    "client": request.client.host if request.client else None,
+                    "client": client_ip,
                     "request_body": request_body,
                     "error": {
                         "type": exc.__class__.__name__,
@@ -109,7 +112,7 @@ async def http_logging_middleware(
                 "method": request.method,
                 "path": request.url.path,
                 "query": request.url.query or None,
-                "client": request.client.host if request.client else None,
+                "client": client_ip,
                 "request_body": request_body,
                 "status_code": response.status_code,
                 "response_body": response_body,

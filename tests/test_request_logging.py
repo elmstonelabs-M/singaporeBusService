@@ -36,9 +36,42 @@ def test_http_logging_writes_request_and_response() -> None:
         log_text = log_path.read_text(encoding="utf-8")
         assert '"path": "/echo"' in log_text
         assert '"query": "q=1"' in log_text
+        assert '"client": "127.0.0.1"' in log_text
         assert '"request_body": {"message": "hello"}' in log_text
         assert '"response_body": {"received": "hello"}' in log_text
         assert '"status_code": 200' in log_text
         assert '"duration_ms":' in log_text
+
+        logging.shutdown()
+
+
+def test_http_logging_prefers_forwarded_client_ip() -> None:
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir:
+        log_path = Path(tmp_dir) / "app.log"
+        configure_logging("INFO", str(log_path))
+
+        app = FastAPI()
+        app.middleware("http")(http_logging_middleware)
+
+        @app.get("/ping")
+        async def ping() -> dict[str, str]:
+            return {"status": "ok"}
+
+        async def _run() -> None:
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://testserver",
+            ) as client:
+                response = await client.get(
+                    "/ping",
+                    headers={"x-forwarded-for": "203.0.113.10, 10.0.0.2"},
+                )
+
+            assert response.status_code == 200
+
+        asyncio.run(_run())
+
+        log_text = log_path.read_text(encoding="utf-8")
+        assert '"client": "203.0.113.10"' in log_text
 
         logging.shutdown()
