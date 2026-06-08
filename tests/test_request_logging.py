@@ -63,8 +63,11 @@ def test_http_logging_prefers_forwarded_client_ip() -> None:
                 base_url="http://testserver",
             ) as client:
                 response = await client.get(
-                    "/ping",
-                    headers={"x-forwarded-for": "203.0.113.10, 10.0.0.2"},
+                    "/ping?user_device_id=query-device",
+                    headers={
+                        "x-forwarded-for": "203.0.113.10, 10.0.0.2",
+                        "x-device-id": "header-device",
+                    },
                 )
 
             assert response.status_code == 200
@@ -73,5 +76,6 @@ def test_http_logging_prefers_forwarded_client_ip() -> None:
 
         log_text = log_path.read_text(encoding="utf-8")
         assert '"client": "203.0.113.10"' in log_text
+        assert '"device_id": "header-device"' in log_text
 
         logging.shutdown()

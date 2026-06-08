@@ -22,6 +22,10 @@ _EXCLUDED_STATS_PATHS = {
     "/health/full",
     "/ops/logs",
     "/v1/ops/logs",
+    "/v1/static-data/version",
+    "/v1/static-data/package",
+    "/v1/dataset/version",
+    "/v1/dataset/download",
 }
 
 
@@ -66,9 +70,13 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
     today = datetime.now(LOCAL_TZ).date()
     request_count = 0
     error_count = 0
+    client_error_count = 0
+    server_error_count = 0
     clients: set[str] = set()
+    devices: set[str] = set()
     endpoint_counts: Counter[str] = Counter()
     endpoint_clients: dict[str, set[str]] = defaultdict(set)
+    endpoint_devices: dict[str, set[str]] = defaultdict(set)
 
     for raw_line in _iter_log_lines(log_file_path):
         parsed = parse_log_line(raw_line)
@@ -85,23 +93,34 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
         client = parsed.record.get("client")
         if isinstance(client, str) and client:
             clients.add(client)
+        device_id = parsed.record.get("device_id")
+        if isinstance(device_id, str) and device_id:
+            devices.add(device_id)
 
         status_code = parsed.record.get("status_code")
-        if isinstance(status_code, int) and status_code >= 400:
+        if isinstance(status_code, int) and 400 <= status_code < 500:
+            client_error_count += 1
+            error_count += 1
+        elif isinstance(status_code, int) and status_code >= 500:
+            server_error_count += 1
             error_count += 1
         elif parsed.record.get("error"):
+            server_error_count += 1
             error_count += 1
 
         endpoint = normalize_endpoint_path(path)
         endpoint_counts[endpoint] += 1
         if isinstance(client, str) and client:
             endpoint_clients[endpoint].add(client)
+        if isinstance(device_id, str) and device_id:
+            endpoint_devices[endpoint].add(device_id)
 
     endpoints = [
         {
             "endpoint": endpoint,
             "request_count": count,
             "ip_count": len(endpoint_clients[endpoint]),
+            "device_count": len(endpoint_devices[endpoint]),
         }
         for endpoint, count in endpoint_counts.most_common(10)
     ]
@@ -111,7 +130,10 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
         "timezone": "Asia/Singapore",
         "request_count": request_count,
         "ip_count": len(clients),
+        "device_count": len(devices),
         "error_count": error_count,
+        "client_error_count": client_error_count,
+        "server_error_count": server_error_count,
         "top_endpoints": endpoints,
     }
 

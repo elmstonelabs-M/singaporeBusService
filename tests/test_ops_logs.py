@@ -32,6 +32,7 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
                         {
                             "path": "/v1/bus-stops/83139/arrivals",
                             "client": "10.0.0.1",
+                            "device_id": "device-1",
                             "status_code": 200,
                         }
                     )
@@ -39,11 +40,12 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
                 (
                     f"{today_utc} INFO app.http "
                     + json.dumps(
-                        {
-                            "path": "/v1/bus-stops/83139/arrivals",
-                            "client": "10.0.0.1",
-                            "status_code": 200,
-                        }
+                            {
+                                "path": "/v1/bus-stops/83139/arrivals",
+                                "client": "10.0.0.1",
+                                "device_id": "device-1",
+                                "status_code": 200,
+                            }
                     )
                 ),
                 (
@@ -52,6 +54,7 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
                         {
                             "path": "/v1/bus-stops/01012/arrivals",
                             "client": "10.0.0.2",
+                            "device_id": "device-2",
                             "status_code": 200,
                         }
                     )
@@ -63,6 +66,39 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
                             "path": "/health",
                             "client": "127.0.0.1",
                             "status_code": 200,
+                        }
+                    )
+                ),
+                (
+                    f"{today_utc} INFO app.http "
+                    + json.dumps(
+                        {
+                            "path": "/v1/static-data/version",
+                            "client": "10.0.0.4",
+                            "device_id": "device-static",
+                            "status_code": 200,
+                        }
+                    )
+                ),
+                (
+                    f"{today_utc} INFO app.http "
+                    + json.dumps(
+                        {
+                            "path": "/v1/dataset/download",
+                            "client": "10.0.0.5",
+                            "device_id": "device-dataset",
+                            "status_code": 200,
+                        }
+                    )
+                ),
+                (
+                    f"{today_utc} INFO app.http "
+                    + json.dumps(
+                        {
+                            "path": "/v1/bus-stops/search",
+                            "client": "10.0.0.3",
+                            "device_id": "device-2",
+                            "status_code": 422,
                         }
                     )
                 ),
@@ -94,13 +130,17 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
     body = response.json()
     assert body["limit"] == 2
     assert len(body["lines"]) == 2
-    assert body["today"]["request_count"] == 3
-    assert body["today"]["ip_count"] == 2
-    assert body["today"]["error_count"] == 1
+    assert body["today"]["request_count"] == 4
+    assert body["today"]["ip_count"] == 3
+    assert body["today"]["device_count"] == 2
+    assert body["today"]["error_count"] == 2
+    assert body["today"]["client_error_count"] == 1
+    assert body["today"]["server_error_count"] == 1
     assert body["today"]["top_endpoints"][0] == {
         "endpoint": "/v1/bus-stops/{bus_stop_code}/arrivals",
         "request_count": 2,
         "ip_count": 2,
+        "device_count": 2,
     }
 
 

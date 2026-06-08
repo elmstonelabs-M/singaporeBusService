@@ -65,6 +65,23 @@ def _truncate_log_line(record: dict[str, Any]) -> str:
     return f"{line[:MAX_LOG_LINE_LENGTH]}... [truncated {len(line) - MAX_LOG_LINE_LENGTH} chars]"
 
 
+def _get_device_id(request: Request, request_body: Any) -> str | None:
+    header_device_id = request.headers.get("x-device-id")
+    if header_device_id and header_device_id.strip():
+        return header_device_id.strip()
+
+    query_device_id = request.query_params.get("user_device_id")
+    if query_device_id and query_device_id.strip():
+        return query_device_id.strip()
+
+    if isinstance(request_body, dict):
+        body_device_id = request_body.get("user_device_id")
+        if isinstance(body_device_id, str) and body_device_id.strip():
+            return body_device_id.strip()
+
+    return None
+
+
 async def http_logging_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
@@ -74,6 +91,7 @@ async def http_logging_middleware(
     client_ip = get_client_ip(request)
     started_at = perf_counter()
     request_body = _decode_payload(await request.body(), request.headers.get("content-type"))
+    device_id = _get_device_id(request, request_body)
 
     try:
         response = await call_next(request)
@@ -87,6 +105,7 @@ async def http_logging_middleware(
                     "path": request.url.path,
                     "query": request.url.query or None,
                     "client": client_ip,
+                    "device_id": device_id,
                     "request_body": request_body,
                     "error": {
                         "type": exc.__class__.__name__,
@@ -113,6 +132,7 @@ async def http_logging_middleware(
                 "path": request.url.path,
                 "query": request.url.query or None,
                 "client": client_ip,
+                "device_id": device_id,
                 "request_body": request_body,
                 "status_code": response.status_code,
                 "response_body": response_body,

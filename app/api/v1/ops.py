@@ -70,11 +70,12 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
         f"<td>{escape(item['endpoint'])}</td>"
         f"<td>{item['request_count']}</td>"
         f"<td>{item['ip_count']}</td>"
+        f"<td>{item['device_count']}</td>"
         "</tr>"
         for item in today["top_endpoints"]
     )
     if not rows:
-        rows = '<tr><td colspan="3">No app usage found for today.</td></tr>'
+        rows = '<tr><td colspan="4">No app usage found for today.</td></tr>'
 
     log_text = escape("\n".join(lines))
     return f"""<!doctype html>
@@ -108,11 +109,13 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
       <div class="stat"><div class="label">Date</div><div class="value">{escape(today["date"])}</div></div>
       <div class="stat"><div class="label">Requests</div><div class="value">{today["request_count"]}</div></div>
       <div class="stat"><div class="label">Request IPs</div><div class="value">{today["ip_count"]}</div></div>
-      <div class="stat"><div class="label">Errors</div><div class="value">{today["error_count"]}</div></div>
+      <div class="stat"><div class="label">Active Devices</div><div class="value">{today["device_count"]}</div></div>
+      <div class="stat"><div class="label">Client Errors (4xx)</div><div class="value">{today["client_error_count"]}</div></div>
+      <div class="stat"><div class="label">Server Errors (5xx)</div><div class="value">{today["server_error_count"]}</div></div>
     </section>
     <h2>Top Endpoints</h2>
     <table>
-      <thead><tr><th>Endpoint</th><th>Requests</th><th>Request IPs</th></tr></thead>
+      <thead><tr><th>Endpoint</th><th>Requests</th><th>Request IPs</th><th>Devices</th></tr></thead>
       <tbody>{rows}</tbody>
     </table>
     <h2>Recent Logs</h2>
