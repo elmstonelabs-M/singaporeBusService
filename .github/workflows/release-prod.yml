@@ -61,6 +61,8 @@ jobs:
             -e "ssh -p ${PROD_SSH_PORT}" \
             --exclude ".env.production" \
             --exclude "backups/" \
+            --exclude "datasets/" \
+            --exclude "logs/" \
             --exclude ".git/" \
             --exclude ".github/" \
             ./ "${PROD_SSH_USER}@${PROD_SSH_HOST}:${PROD_DEPLOY_PATH}/"
