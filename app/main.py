@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from app.api.v1 import arrivals, bus_stop_aliases, bus_stops, favorites, feedback, home, static_data
+from app.api.v1 import arrivals, bus_stop_aliases, bus_stops, favorites, feedback, home, ops, static_data
 from app.core.cache import get_cache_service
 from app.core.config import get_settings
 from app.core.database import SessionLocal, init_database
@@ -48,6 +48,8 @@ app.include_router(home.router, prefix="/v1")
 app.include_router(static_data.router, prefix="/v1")
 app.include_router(static_data.dataset_router, prefix="/v1")
 app.include_router(feedback.router, prefix="/v1")
+app.include_router(ops.router, prefix="/v1")
+app.include_router(ops.page_router)
 
 
 @app.exception_handler(AppError)

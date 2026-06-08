@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_file_path: str | None = Field(default=None, alias="LOG_FILE_PATH")
+    ops_log_token: str | None = Field(default=None, alias="OPS_LOG_TOKEN")
 
     @property
     def cors_origins_list(self) -> list[str]:
