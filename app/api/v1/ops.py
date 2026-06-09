@@ -77,6 +77,17 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
     if not rows:
         rows = '<tr><td colspan="4">No app usage found for today.</td></tr>'
 
+    device_rows = "\n".join(
+        "<tr>"
+        f"<td>{escape(item['device_id'])}</td>"
+        f"<td>{escape(item['endpoint'])}</td>"
+        f"<td>{item['request_count']}</td>"
+        "</tr>"
+        for item in today["device_endpoints"]
+    )
+    if not device_rows:
+        device_rows = '<tr><td colspan="3">No device requests found for today.</td></tr>'
+
     log_text = escape("\n".join(lines))
     return f"""<!doctype html>
 <html lang="en">
@@ -117,6 +128,11 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
     <table>
       <thead><tr><th>Endpoint</th><th>Requests</th><th>Request IPs</th><th>Devices</th></tr></thead>
       <tbody>{rows}</tbody>
+    </table>
+    <h2>Device Endpoint Requests</h2>
+    <table>
+      <thead><tr><th>Device ID</th><th>Endpoint</th><th>Requests</th></tr></thead>
+      <tbody>{device_rows}</tbody>
     </table>
     <h2>Recent Logs</h2>
     <pre>{log_text}</pre>

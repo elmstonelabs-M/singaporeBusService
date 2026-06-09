@@ -142,6 +142,23 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
         "ip_count": 2,
         "device_count": 2,
     }
+    assert body["today"]["device_endpoints"] == [
+        {
+            "device_id": "device-1",
+            "endpoint": "/v1/bus-stops/{bus_stop_code}/arrivals",
+            "request_count": 1,
+        },
+        {
+            "device_id": "device-2",
+            "endpoint": "/v1/bus-stops/{bus_stop_code}/arrivals",
+            "request_count": 1,
+        },
+        {
+            "device_id": "device-2",
+            "endpoint": "/v1/bus-stops/{bus_stop_code}",
+            "request_count": 1,
+        },
+    ]
 
 
 async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
@@ -154,6 +171,7 @@ async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
                 {
                     "path": "/v1/bus-stops/83139/arrivals",
                     "client": "10.0.0.1",
+                    "device_id": "device-full-id",
                     "status_code": 200,
                 }
             )
@@ -172,4 +190,6 @@ async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
 
     assert response.status_code == 200
     assert "Top Endpoints" in response.text
+    assert "Device Endpoint Requests" in response.text
+    assert "device-full-id" in response.text
     assert "/v1/bus-stops/{bus_stop_code}/arrivals" in response.text

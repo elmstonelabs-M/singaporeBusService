@@ -77,6 +77,7 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
     endpoint_counts: Counter[str] = Counter()
     endpoint_clients: dict[str, set[str]] = defaultdict(set)
     endpoint_devices: dict[str, set[str]] = defaultdict(set)
+    device_endpoint_counts: Counter[tuple[str, str]] = Counter()
 
     for raw_line in _iter_log_lines(log_file_path):
         parsed = parse_log_line(raw_line)
@@ -114,6 +115,7 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
             endpoint_clients[endpoint].add(client)
         if isinstance(device_id, str) and device_id:
             endpoint_devices[endpoint].add(device_id)
+            device_endpoint_counts[(device_id, endpoint)] += 1
 
     endpoints = [
         {
@@ -123,6 +125,14 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
             "device_count": len(endpoint_devices[endpoint]),
         }
         for endpoint, count in endpoint_counts.most_common(10)
+    ]
+    device_endpoints = [
+        {
+            "device_id": device_id,
+            "endpoint": endpoint,
+            "request_count": count,
+        }
+        for (device_id, endpoint), count in device_endpoint_counts.most_common(100)
     ]
 
     return {
@@ -135,6 +145,7 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
         "client_error_count": client_error_count,
         "server_error_count": server_error_count,
         "top_endpoints": endpoints,
+        "device_endpoints": device_endpoints,
     }
 
 
