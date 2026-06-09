@@ -8,6 +8,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://user:password@postgres:5432/bus_app
       REDIS_URL: redis://redis:6379/0
+      TZ: ${APP_TIMEZONE:-Asia/Singapore}
     depends_on:
       - postgres
       - redis
@@ -18,6 +19,7 @@ services:
       POSTGRES_DB: bus_app
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
+      TZ: ${APP_TIMEZONE:-Asia/Singapore}
     ports:
       - "5432:5432"
     volumes:
@@ -25,6 +27,8 @@ services:
 
   redis:
     image: redis:7
+    environment:
+      TZ: ${APP_TIMEZONE:-Asia/Singapore}
     ports:
       - "16379:6379"
 
