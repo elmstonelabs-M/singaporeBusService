@@ -79,3 +79,42 @@ def test_http_logging_prefers_forwarded_client_ip() -> None:
         assert '"device_id": "header-device"' in log_text
 
         logging.shutdown()
+
+
+def test_http_logging_summarizes_bus_stop_arrivals_response() -> None:
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir:
+        log_path = Path(tmp_dir) / "app.log"
+        configure_logging("INFO", str(log_path))
+
+        app = FastAPI()
+        app.middleware("http")(http_logging_middleware)
+
+        @app.get("/v1/bus-stops/{bus_stop_code}/arrivals")
+        async def arrivals(bus_stop_code: str) -> dict[str, object]:
+            return {
+                "data": {
+                    "bus_stop_code": bus_stop_code,
+                    "description": "Nan Hua Pr Sch",
+                    "services": [{"service_no": "105"}],
+                },
+                "meta": {"stale": False},
+            }
+
+        async def _run() -> None:
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://testserver",
+            ) as client:
+                response = await client.get("/v1/bus-stops/20101/arrivals")
+
+            assert response.status_code == 200
+            assert response.json()["data"]["services"] == [{"service_no": "105"}]
+
+        asyncio.run(_run())
+
+        log_text = log_path.read_text(encoding="utf-8")
+        assert '"response_body": {"data": {"bus_stop_code": "20101"}}' in log_text
+        assert '"description": "Nan Hua Pr Sch"' not in log_text
+        assert '"service_no": "105"' not in log_text
+
+        logging.shutdown()

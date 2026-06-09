@@ -15,6 +15,8 @@ from app.utils.request import get_client_ip
 
 MAX_LOG_LINE_LENGTH = 20_000
 LOGGER_NAME = "app.http"
+BUS_STOP_ARRIVALS_PATH_PREFIX = "/v1/bus-stops/"
+BUS_STOP_ARRIVALS_PATH_SUFFIX = "/arrivals"
 
 
 def configure_logging(log_level: str, log_file_path: str | None = None) -> None:
@@ -82,6 +84,21 @@ def _get_device_id(request: Request, request_body: Any) -> str | None:
     return None
 
 
+def _response_body_for_log(path: str, response_body: Any) -> Any:
+    if not (
+        path.startswith(BUS_STOP_ARRIVALS_PATH_PREFIX)
+        and path.endswith(BUS_STOP_ARRIVALS_PATH_SUFFIX)
+        and isinstance(response_body, dict)
+    ):
+        return response_body
+
+    data = response_body.get("data")
+    if not isinstance(data, dict) or "bus_stop_code" not in data:
+        return response_body
+
+    return {"data": {"bus_stop_code": data["bus_stop_code"]}}
+
+
 async def http_logging_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
@@ -122,6 +139,7 @@ async def http_logging_middleware(
         response_body_bytes.extend(chunk)
 
     response_body = _decode_payload(bytes(response_body_bytes), response.headers.get("content-type"))
+    logged_response_body = _response_body_for_log(request.url.path, response_body)
     duration_ms = round((perf_counter() - started_at) * 1000, 2)
 
     logger.info(
@@ -135,7 +153,7 @@ async def http_logging_middleware(
                 "device_id": device_id,
                 "request_body": request_body,
                 "status_code": response.status_code,
-                "response_body": response_body,
+                "response_body": logged_response_body,
                 "duration_ms": duration_ms,
             }
         )
