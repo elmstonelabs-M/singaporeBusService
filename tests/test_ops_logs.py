@@ -4,7 +4,9 @@ from datetime import UTC, datetime, timedelta
 from httpx import ASGITransport, AsyncClient
 
 from app.core.config import get_settings
+from app.core.logging import DailySizeLimitedFileHandler
 from app.main import app
+from app.services.log_service import get_log_files
 
 
 async def test_ops_logs_requires_token(api_client, monkeypatch) -> None:
@@ -19,11 +21,12 @@ async def test_ops_logs_requires_token(api_client, monkeypatch) -> None:
 
 async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypatch) -> None:
     log_path = tmp_path / "app.log"
+    daily_log_path = tmp_path / f"app-{datetime.now().date().isoformat()}.log"
     today_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
     yesterday_utc = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S,%f")[
         :-3
     ]
-    log_path.write_text(
+    daily_log_path.write_text(
         "\n".join(
             [
                 (
@@ -163,8 +166,9 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
 
 async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
     log_path = tmp_path / "app.log"
+    daily_log_path = tmp_path / f"app-{datetime.now().date().isoformat()}.log"
     today_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
-    log_path.write_text(
+    daily_log_path.write_text(
         (
             f"{today_utc} INFO app.http "
             + json.dumps(
@@ -193,3 +197,43 @@ async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
     assert "Device Endpoint Requests" in response.text
     assert "device-full-id" in response.text
     assert "/v1/bus-stops/{bus_stop_code}/arrivals" in response.text
+
+
+def test_log_files_include_only_daily_files(tmp_path) -> None:
+    base_path = tmp_path / "app.log"
+    legacy_path = tmp_path / "app.log.1"
+    older_daily_path = tmp_path / "app-2026-06-10.log"
+    newer_daily_path = tmp_path / "app-2026-06-11.log"
+    for path in (base_path, legacy_path, older_daily_path, newer_daily_path):
+        path.write_text(path.name, encoding="utf-8")
+
+    assert get_log_files(str(base_path)) == [
+        older_daily_path,
+        newer_daily_path,
+    ]
+
+
+def test_daily_log_trim_keeps_newest_complete_lines(tmp_path, monkeypatch) -> None:
+    log_path = tmp_path / "app.log"
+    daily_path = tmp_path / "app-2026-06-11.log"
+    daily_path.write_bytes(b"old-line\nmiddle-line\nnew-line\n")
+    handler = DailySizeLimitedFileHandler(log_path)
+
+    monkeypatch.setattr("app.core.logging.TRIMMED_DAILY_LOG_BYTES", 18)
+    handler._trim_oldest_lines(daily_path)
+
+    assert daily_path.read_bytes() == b"new-line\n"
+
+
+def test_daily_log_removes_files_older_than_seven_days(tmp_path) -> None:
+    log_path = tmp_path / "app.log"
+    expired_path = tmp_path / "app-2026-06-04.log"
+    retained_path = tmp_path / "app-2026-06-05.log"
+    expired_path.write_text("expired", encoding="utf-8")
+    retained_path.write_text("retained", encoding="utf-8")
+    handler = DailySizeLimitedFileHandler(log_path)
+
+    handler._remove_expired_logs(datetime(2026, 6, 11).date())
+
+    assert not expired_path.exists()
+    assert retained_path.exists()

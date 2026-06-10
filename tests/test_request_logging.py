@@ -9,6 +9,11 @@ from httpx import ASGITransport, AsyncClient
 from app.core.logging import configure_logging, http_logging_middleware
 
 
+def _read_dated_log(base_path: Path) -> str:
+    [dated_path] = base_path.parent.glob(f"{base_path.stem}-????-??-??{base_path.suffix}")
+    return dated_path.read_text(encoding="utf-8")
+
+
 def test_http_logging_writes_request_and_response() -> None:
     with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir:
         log_path = Path(tmp_dir) / "app.log"
@@ -33,7 +38,7 @@ def test_http_logging_writes_request_and_response() -> None:
 
         asyncio.run(_run())
 
-        log_text = log_path.read_text(encoding="utf-8")
+        log_text = _read_dated_log(log_path)
         assert '"path": "/echo"' in log_text
         assert '"query": "q=1"' in log_text
         assert '"client": "127.0.0.1"' in log_text
@@ -74,7 +79,7 @@ def test_http_logging_prefers_forwarded_client_ip() -> None:
 
         asyncio.run(_run())
 
-        log_text = log_path.read_text(encoding="utf-8")
+        log_text = _read_dated_log(log_path)
         assert '"client": "203.0.113.10"' in log_text
         assert '"device_id": "header-device"' in log_text
 
@@ -112,7 +117,7 @@ def test_http_logging_summarizes_bus_stop_arrivals_response() -> None:
 
         asyncio.run(_run())
 
-        log_text = log_path.read_text(encoding="utf-8")
+        log_text = _read_dated_log(log_path)
         assert '"response_body": {"data": {"bus_stop_code": "20101"}}' in log_text
         assert '"description": "Nan Hua Pr Sch"' not in log_text
         assert '"service_no": "105"' not in log_text
@@ -152,5 +157,5 @@ def test_http_logging_excludes_health_and_ops_logs() -> None:
         asyncio.run(_run())
 
         logging.shutdown()
-        log_text = log_path.read_text(encoding="utf-8")
+        log_text = _read_dated_log(log_path)
         assert "INFO app.http" not in log_text

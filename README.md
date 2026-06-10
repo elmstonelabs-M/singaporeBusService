@@ -99,8 +99,10 @@ existing static data version unchanged.
 
 For the full operator checklist, see [RELEASE_RUNBOOK.md](D:\developwork\singaporeBusService\RELEASE_RUNBOOK.md).
 
-Production HTTP request/response logs are written to `./logs/app.log` on the server,
-which maps to `/app/logs/app.log` inside the container.
+Production HTTP request/response logs are written to daily files such as
+`./logs/app-2026-06-11.log` on the server. Each daily file keeps the newest
+complete log lines and is trimmed when it exceeds 10 MB. Logs older than
+seven days are removed automatically.
 
 Example endpoints:
 

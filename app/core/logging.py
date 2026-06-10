@@ -3,21 +3,78 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from logging.handlers import RotatingFileHandler
+from datetime import datetime, timedelta
 from pathlib import Path
 from time import perf_counter
 from typing import Any
 import uuid
+from zoneinfo import ZoneInfo
 
 from fastapi import Request, Response
 
 from app.utils.request import get_client_ip
 
 MAX_LOG_LINE_LENGTH = 20_000
+MAX_DAILY_LOG_BYTES = 10 * 1024 * 1024
+TRIMMED_DAILY_LOG_BYTES = 8 * 1024 * 1024
+LOG_RETENTION_DAYS = 7
+LOG_TIMEZONE = ZoneInfo("Asia/Singapore")
 LOGGER_NAME = "app.http"
 BUS_STOP_ARRIVALS_PATH_PREFIX = "/v1/bus-stops/"
 BUS_STOP_ARRIVALS_PATH_SUFFIX = "/arrivals"
 HTTP_LOG_EXCLUDED_PATHS = frozenset({"/health", "/health/full", "/ops/logs"})
+
+
+class DailySizeLimitedFileHandler(logging.Handler):
+    def __init__(self, base_path: Path) -> None:
+        super().__init__()
+        self.base_path = base_path
+        self.base_path.parent.mkdir(parents=True, exist_ok=True)
+        self._active_date: str | None = None
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            message = f"{self.format(record)}\n".encode("utf-8", errors="replace")
+            path = self._dated_path()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("ab") as file:
+                file.write(message)
+            if path.stat().st_size > MAX_DAILY_LOG_BYTES:
+                self._trim_oldest_lines(path)
+        except Exception:
+            self.handleError(record)
+
+    def _dated_path(self) -> Path:
+        today = datetime.now(LOG_TIMEZONE).date()
+        date = today.isoformat()
+        if date != self._active_date:
+            self._remove_expired_logs(today)
+            self._active_date = date
+        return self.base_path.with_name(f"{self.base_path.stem}-{date}{self.base_path.suffix}")
+
+    def _remove_expired_logs(self, today) -> None:
+        cutoff = today - timedelta(days=LOG_RETENTION_DAYS - 1)
+        for path in self.base_path.parent.glob(
+            f"{self.base_path.stem}-????-??-??{self.base_path.suffix}"
+        ):
+            try:
+                file_date = datetime.strptime(
+                    path.stem.removeprefix(f"{self.base_path.stem}-"),
+                    "%Y-%m-%d",
+                ).date()
+                if file_date < cutoff:
+                    path.unlink()
+            except (OSError, ValueError):
+                continue
+
+    @staticmethod
+    def _trim_oldest_lines(path: Path) -> None:
+        with path.open("rb") as file:
+            file.seek(-TRIMMED_DAILY_LOG_BYTES, 2)
+            file.readline()
+            retained = file.read()
+        with path.open("wb") as file:
+            file.write(retained)
 
 
 def configure_logging(log_level: str, log_file_path: str | None = None) -> None:
@@ -37,13 +94,7 @@ def configure_logging(log_level: str, log_file_path: str | None = None) -> None:
 
     if log_file_path:
         path = Path(log_file_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        file_handler = RotatingFileHandler(
-            path,
-            maxBytes=5 * 1024 * 1024,
-            backupCount=5,
-            encoding="utf-8",
-        )
+        file_handler = DailySizeLimitedFileHandler(path)
         file_handler.setFormatter(formatter)
         root.addHandler(file_handler)
 

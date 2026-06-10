@@ -50,10 +50,8 @@ def get_log_files(log_file_path: str | None) -> list[Path]:
         return []
 
     path = Path(log_file_path)
-    candidates = [path]
-    candidates.extend(path.with_name(f"{path.name}.{index}") for index in range(1, 6))
-    existing = [candidate for candidate in candidates if candidate.exists()]
-    return sorted(existing, key=_log_file_sort_key)
+    candidates = path.parent.glob(f"{path.stem}-????-??-??{path.suffix}")
+    return sorted((candidate for candidate in candidates if candidate.exists()), key=lambda p: p.name)
 
 
 def read_recent_log_lines(log_file_path: str | None, limit: int = DEFAULT_LOG_LIMIT) -> list[str]:
@@ -201,10 +199,3 @@ def _parse_timestamp(value: str) -> datetime | None:
         return datetime.strptime(value, LOG_TIMESTAMP_FORMAT).replace(tzinfo=UTC)
     except ValueError:
         return None
-
-
-def _log_file_sort_key(path: Path) -> int:
-    suffix = path.suffix
-    if suffix.startswith(".") and suffix[1:].isdigit():
-        return -int(suffix[1:])
-    return 0
