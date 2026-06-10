@@ -118,3 +118,39 @@ def test_http_logging_summarizes_bus_stop_arrivals_response() -> None:
         assert '"service_no": "105"' not in log_text
 
         logging.shutdown()
+
+
+def test_http_logging_excludes_health_and_ops_logs() -> None:
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir:
+        log_path = Path(tmp_dir) / "app.log"
+        configure_logging("INFO", str(log_path))
+
+        app = FastAPI()
+        app.middleware("http")(http_logging_middleware)
+
+        @app.get("/health")
+        async def health() -> dict[str, str]:
+            return {"status": "ok"}
+
+        @app.get("/health/full")
+        async def full_health() -> dict[str, str]:
+            return {"status": "ok"}
+
+        @app.get("/ops/logs")
+        async def ops_logs() -> str:
+            return "large logs page"
+
+        async def _run() -> None:
+            async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://testserver",
+            ) as client:
+                assert (await client.get("/health")).status_code == 200
+                assert (await client.get("/health/full")).status_code == 200
+                assert (await client.get("/ops/logs?token=secret")).status_code == 200
+
+        asyncio.run(_run())
+
+        logging.shutdown()
+        log_text = log_path.read_text(encoding="utf-8")
+        assert "INFO app.http" not in log_text

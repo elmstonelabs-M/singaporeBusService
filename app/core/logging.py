@@ -17,6 +17,7 @@ MAX_LOG_LINE_LENGTH = 20_000
 LOGGER_NAME = "app.http"
 BUS_STOP_ARRIVALS_PATH_PREFIX = "/v1/bus-stops/"
 BUS_STOP_ARRIVALS_PATH_SUFFIX = "/arrivals"
+HTTP_LOG_EXCLUDED_PATHS = frozenset({"/health", "/health/full", "/ops/logs"})
 
 
 def configure_logging(log_level: str, log_file_path: str | None = None) -> None:
@@ -103,6 +104,9 @@ async def http_logging_middleware(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
+    if request.url.path in HTTP_LOG_EXCLUDED_PATHS:
+        return await call_next(request)
+
     logger = logging.getLogger(LOGGER_NAME)
     request_id = request.headers.get("x-request-id") or f"req_{uuid.uuid4().hex[:12]}"
     client_ip = get_client_ip(request)
