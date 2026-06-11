@@ -1,17 +1,35 @@
 import asyncio
 import logging
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from app.core.logging import configure_logging, http_logging_middleware
+from app.services.log_service import parse_log_line
+from app.utils.time_utils import SINGAPORE_TZ
 
 
 def _read_dated_log(base_path: Path) -> str:
     [dated_path] = base_path.parent.glob(f"{base_path.stem}-????-??-??{base_path.suffix}")
     return dated_path.read_text(encoding="utf-8")
+
+
+def test_file_log_timestamp_uses_singapore_timezone(monkeypatch) -> None:
+    with tempfile.TemporaryDirectory(dir=Path.cwd()) as tmp_dir:
+        log_path = Path(tmp_dir) / "app.log"
+        configure_logging("INFO", str(log_path))
+        fixed_timestamp = datetime(2026, 6, 11, 15, 30, tzinfo=SINGAPORE_TZ)
+        record = logging.LogRecord("test", logging.INFO, "", 0, "hello", (), None)
+        record.created = fixed_timestamp.timestamp()
+
+        logging.getLogger().handle(record)
+        logging.shutdown()
+
+        parsed = parse_log_line(_read_dated_log(log_path).strip())
+        assert parsed.timestamp_local == fixed_timestamp
 
 
 def test_http_logging_writes_request_and_response() -> None:
@@ -145,6 +163,10 @@ def test_http_logging_excludes_health_and_ops_logs() -> None:
         async def ops_logs() -> str:
             return "large logs page"
 
+        @app.get("/v1/ops/logs")
+        async def ops_logs_api() -> dict[str, str]:
+            return {"logs": "large logs response"}
+
         async def _run() -> None:
             async with AsyncClient(
                 transport=ASGITransport(app=app),
@@ -153,6 +175,7 @@ def test_http_logging_excludes_health_and_ops_logs() -> None:
                 assert (await client.get("/health")).status_code == 200
                 assert (await client.get("/health/full")).status_code == 200
                 assert (await client.get("/ops/logs?token=secret")).status_code == 200
+                assert (await client.get("/v1/ops/logs?token=secret")).status_code == 200
 
         asyncio.run(_run())
 

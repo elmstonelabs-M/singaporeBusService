@@ -1,12 +1,15 @@
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from httpx import ASGITransport, AsyncClient
 
 from app.core.config import get_settings
 from app.core.logging import DailySizeLimitedFileHandler
 from app.main import app
-from app.services.log_service import get_log_files
+from app.services.log_service import get_log_files, parse_log_line
+
+LOCAL_TZ = ZoneInfo("Asia/Singapore")
 
 
 async def test_ops_logs_requires_token(api_client, monkeypatch) -> None:
@@ -22,8 +25,8 @@ async def test_ops_logs_requires_token(api_client, monkeypatch) -> None:
 async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypatch) -> None:
     log_path = tmp_path / "app.log"
     daily_log_path = tmp_path / f"app-{datetime.now().date().isoformat()}.log"
-    today_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
-    yesterday_utc = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S,%f")[
+    today_utc = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    yesterday_utc = (datetime.now(LOCAL_TZ) - timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S,%f")[
         :-3
     ]
     daily_log_path.write_text(
@@ -167,7 +170,7 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
 async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
     log_path = tmp_path / "app.log"
     daily_log_path = tmp_path / f"app-{datetime.now().date().isoformat()}.log"
-    today_utc = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+    today_utc = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
     daily_log_path.write_text(
         (
             f"{today_utc} INFO app.http "
@@ -237,3 +240,14 @@ def test_daily_log_removes_files_older_than_seven_days(tmp_path) -> None:
 
     assert not expired_path.exists()
     assert retained_path.exists()
+
+
+def test_log_timestamp_near_midnight_stays_on_singapore_date() -> None:
+    parsed = parse_log_line(
+        '2026-06-11 23:59:59,999 INFO app.http {"path": "/v1/bus-stops/17059/arrivals"}'
+    )
+
+    assert parsed.timestamp_local is not None
+    assert parsed.timestamp_local.isoformat() == "2026-06-11T23:59:59.999000+08:00"
+    assert parsed.timestamp_utc is not None
+    assert parsed.timestamp_utc.isoformat() == "2026-06-11T15:59:59.999000+00:00"

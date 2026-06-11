@@ -8,21 +8,22 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 import uuid
-from zoneinfo import ZoneInfo
 
 from fastapi import Request, Response
 
 from app.utils.request import get_client_ip
+from app.utils.time_utils import SINGAPORE_TZ
 
 MAX_LOG_LINE_LENGTH = 20_000
 MAX_DAILY_LOG_BYTES = 10 * 1024 * 1024
 TRIMMED_DAILY_LOG_BYTES = 8 * 1024 * 1024
 LOG_RETENTION_DAYS = 7
-LOG_TIMEZONE = ZoneInfo("Asia/Singapore")
 LOGGER_NAME = "app.http"
 BUS_STOP_ARRIVALS_PATH_PREFIX = "/v1/bus-stops/"
 BUS_STOP_ARRIVALS_PATH_SUFFIX = "/arrivals"
-HTTP_LOG_EXCLUDED_PATHS = frozenset({"/health", "/health/full", "/ops/logs"})
+HTTP_LOG_EXCLUDED_PATHS = frozenset(
+    {"/health", "/health/full", "/ops/logs", "/v1/ops/logs"}
+)
 
 
 class DailySizeLimitedFileHandler(logging.Handler):
@@ -45,7 +46,7 @@ class DailySizeLimitedFileHandler(logging.Handler):
             self.handleError(record)
 
     def _dated_path(self) -> Path:
-        today = datetime.now(LOG_TIMEZONE).date()
+        today = datetime.now(SINGAPORE_TZ).date()
         date = today.isoformat()
         if date != self._active_date:
             self._remove_expired_logs(today)
@@ -77,6 +78,18 @@ class DailySizeLimitedFileHandler(logging.Handler):
             file.write(retained)
 
 
+class SingaporeLogFormatter(logging.Formatter):
+    def formatTime(
+        self,
+        record: logging.LogRecord,
+        datefmt: str | None = None,
+    ) -> str:
+        timestamp = datetime.fromtimestamp(record.created, tz=SINGAPORE_TZ)
+        if datefmt:
+            return timestamp.strftime(datefmt)
+        return f"{timestamp:%Y-%m-%d %H:%M:%S},{timestamp.microsecond // 1000:03d}"
+
+
 def configure_logging(log_level: str, log_file_path: str | None = None) -> None:
     level = getattr(logging, log_level.upper(), logging.INFO)
     root = logging.getLogger()
@@ -86,7 +99,7 @@ def configure_logging(log_level: str, log_file_path: str | None = None) -> None:
         root.removeHandler(handler)
         handler.close()
 
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    formatter = SingaporeLogFormatter("%(asctime)s %(levelname)s %(name)s %(message)s")
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)

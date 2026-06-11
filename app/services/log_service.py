@@ -6,9 +6,9 @@ from collections import Counter, defaultdict, deque
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-LOCAL_TZ = ZoneInfo("Asia/Singapore")
+from app.utils.time_utils import SINGAPORE_TZ
+
 LOG_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S,%f"
 MAX_LOG_LIMIT = 500
 DEFAULT_LOG_LIMIT = 100
@@ -65,7 +65,7 @@ def read_recent_log_lines(log_file_path: str | None, limit: int = DEFAULT_LOG_LI
 
 
 def build_today_usage_summary(log_file_path: str | None) -> dict:
-    today = datetime.now(LOCAL_TZ).date()
+    today = datetime.now(SINGAPORE_TZ).date()
     request_count = 0
     error_count = 0
     client_error_count = 0
@@ -148,9 +148,9 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
 
 
 def parse_log_line(line: str) -> ParsedLogLine:
-    timestamp_utc = _parse_timestamp(line[:23])
-    timestamp_local = (
-        timestamp_utc.astimezone(LOCAL_TZ) if timestamp_utc is not None else None
+    timestamp_local = _parse_timestamp(line[:23])
+    timestamp_utc = (
+        timestamp_local.astimezone(UTC) if timestamp_local is not None else None
     )
     parts = line.split(" ", 3)
     level = parts[2] if len(parts) >= 3 else None
@@ -196,6 +196,6 @@ def _iter_log_lines(log_file_path: str | None):
 
 def _parse_timestamp(value: str) -> datetime | None:
     try:
-        return datetime.strptime(value, LOG_TIMESTAMP_FORMAT).replace(tzinfo=UTC)
+        return datetime.strptime(value, LOG_TIMESTAMP_FORMAT).replace(tzinfo=SINGAPORE_TZ)
     except ValueError:
         return None
