@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.config import get_settings
 from app.core.logging import DailySizeLimitedFileHandler
 from app.main import app
-from app.services.log_service import get_log_files, parse_log_line
+from app.services.log_service import get_log_files, parse_log_line, read_recent_log_lines
 
 LOCAL_TZ = ZoneInfo("Asia/Singapore")
 
@@ -213,6 +213,20 @@ def test_log_files_include_only_daily_files(tmp_path) -> None:
     assert get_log_files(str(base_path)) == [
         older_daily_path,
         newer_daily_path,
+    ]
+
+
+def test_recent_logs_only_include_today_singapore_file(tmp_path) -> None:
+    base_path = tmp_path / "app.log"
+    today = datetime.now(LOCAL_TZ).date()
+    yesterday_path = tmp_path / f"app-{today - timedelta(days=1)}.log"
+    today_path = tmp_path / f"app-{today}.log"
+    yesterday_path.write_text("yesterday-old\nyesterday-new\n", encoding="utf-8")
+    today_path.write_text("today-old\ntoday-new\n", encoding="utf-8")
+
+    assert read_recent_log_lines(str(base_path), limit=3) == [
+        "today-old",
+        "today-new",
     ]
 
 

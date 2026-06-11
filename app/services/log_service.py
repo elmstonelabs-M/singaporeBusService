@@ -57,11 +57,21 @@ def get_log_files(log_file_path: str | None) -> list[Path]:
 def read_recent_log_lines(log_file_path: str | None, limit: int = DEFAULT_LOG_LIMIT) -> list[str]:
     bounded_limit = clamp_log_limit(limit)
     recent_lines: deque[str] = deque(maxlen=bounded_limit)
-    for log_file in get_log_files(log_file_path):
-        with log_file.open("r", encoding="utf-8", errors="replace") as file:
+    today_log = get_today_log_file(log_file_path)
+    if today_log is not None and today_log.exists():
+        with today_log.open("r", encoding="utf-8", errors="replace") as file:
             for line in file:
                 recent_lines.append(line.rstrip("\r\n"))
     return list(recent_lines)
+
+
+def get_today_log_file(log_file_path: str | None) -> Path | None:
+    if not log_file_path:
+        return None
+
+    path = Path(log_file_path)
+    today = datetime.now(SINGAPORE_TZ).date().isoformat()
+    return path.with_name(f"{path.stem}-{today}{path.suffix}")
 
 
 def build_today_usage_summary(log_file_path: str | None) -> dict:
