@@ -202,6 +202,28 @@ async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
     assert "/v1/bus-stops/{bus_stop_code}/arrivals" in response.text
 
 
+async def test_ops_logs_page_renders_recent_logs_newest_first(tmp_path, monkeypatch) -> None:
+    log_path = tmp_path / "app.log"
+    daily_log_path = tmp_path / f"app-{datetime.now().date().isoformat()}.log"
+    daily_log_path.write_text(
+        "2026-06-12 08:00:00,000 INFO app.http older-log\n"
+        "2026-06-12 09:00:00,000 INFO app.http newer-log\n",
+        encoding="utf-8",
+    )
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ops_log_token", "secret")
+    monkeypatch.setattr(settings, "log_file_path", str(log_path))
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as client:
+        response = await client.get("/ops/logs?token=secret")
+
+    assert response.status_code == 200
+    assert response.text.index("newer-log") < response.text.index("older-log")
+
+
 def test_log_files_include_only_daily_files(tmp_path) -> None:
     base_path = tmp_path / "app.log"
     legacy_path = tmp_path / "app.log.1"

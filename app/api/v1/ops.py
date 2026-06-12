@@ -88,7 +88,7 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
     if not device_rows:
         device_rows = '<tr><td colspan="3">No device requests found for today.</td></tr>'
 
-    log_text = escape("\n".join(lines))
+    log_text = escape("\n".join(reversed(lines)))
     return f"""<!doctype html>
 <html lang="en">
 <head>
