@@ -7,7 +7,7 @@ from httpx import ASGITransport, AsyncClient
 from app.core.config import get_settings
 from app.core.logging import DailySizeLimitedFileHandler
 from app.main import app
-from app.services.log_service import get_log_files, parse_log_line, read_recent_log_lines
+from app.services.log_service import get_log_files, parse_log_line, read_recent_arrivals_log_lines
 
 LOCAL_TZ = ZoneInfo("Asia/Singapore")
 
@@ -136,12 +136,12 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
     body = response.json()
     assert body["limit"] == 2
     assert len(body["lines"]) == 2
-    assert body["today"]["request_count"] == 4
-    assert body["today"]["ip_count"] == 3
+    assert body["today"]["request_count"] == 2
+    assert body["today"]["ip_count"] == 2
     assert body["today"]["device_count"] == 2
-    assert body["today"]["error_count"] == 2
-    assert body["today"]["client_error_count"] == 1
-    assert body["today"]["server_error_count"] == 1
+    assert body["today"]["error_count"] == 0
+    assert body["today"]["client_error_count"] == 0
+    assert body["today"]["server_error_count"] == 0
     assert body["today"]["top_endpoints"][0] == {
         "endpoint": "/v1/bus-stops/{bus_stop_code}/arrivals",
         "request_count": 2,
@@ -159,12 +159,8 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
             "endpoint": "/v1/bus-stops/{bus_stop_code}/arrivals",
             "request_count": 1,
         },
-        {
-            "device_id": "device-2",
-            "endpoint": "/v1/bus-stops/{bus_stop_code}",
-            "request_count": 1,
-        },
     ]
+    assert all("/arrivals" in line for line in body["lines"])
 
 
 async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
@@ -206,8 +202,12 @@ async def test_ops_logs_page_renders_recent_logs_newest_first(tmp_path, monkeypa
     log_path = tmp_path / "app.log"
     daily_log_path = tmp_path / f"app-{datetime.now().date().isoformat()}.log"
     daily_log_path.write_text(
-        "2026-06-12 08:00:00,000 INFO app.http older-log\n"
-        "2026-06-12 09:00:00,000 INFO app.http newer-log\n",
+        '2026-06-12 08:00:00,000 INFO app.http {"path": '
+        '"/v1/bus-stops/83139/arrivals", "marker": "older-log"}\n'
+        '2026-06-12 08:30:00,000 INFO app.http {"path": "/v1/bus-stops/search", '
+        '"marker": "excluded-log"}\n'
+        '2026-06-12 09:00:00,000 INFO app.http {"path": '
+        '"/v1/bus-stops/01012/arrivals", "marker": "newer-log"}\n',
         encoding="utf-8",
     )
     settings = get_settings()
@@ -222,6 +222,7 @@ async def test_ops_logs_page_renders_recent_logs_newest_first(tmp_path, monkeypa
 
     assert response.status_code == 200
     assert response.text.index("newer-log") < response.text.index("older-log")
+    assert "excluded-log" not in response.text
 
 
 def test_log_files_include_only_daily_files(tmp_path) -> None:
@@ -238,18 +239,31 @@ def test_log_files_include_only_daily_files(tmp_path) -> None:
     ]
 
 
-def test_recent_logs_only_include_today_singapore_file(tmp_path) -> None:
+def test_recent_logs_only_include_today_bus_stop_arrivals(tmp_path) -> None:
     base_path = tmp_path / "app.log"
     today = datetime.now(LOCAL_TZ).date()
     yesterday_path = tmp_path / f"app-{today - timedelta(days=1)}.log"
     today_path = tmp_path / f"app-{today}.log"
-    yesterday_path.write_text("yesterday-old\nyesterday-new\n", encoding="utf-8")
-    today_path.write_text("today-old\ntoday-new\n", encoding="utf-8")
+    yesterday_path.write_text(
+        '2026-06-11 08:00:00,000 INFO app.http {"path": '
+        '"/v1/bus-stops/83139/arrivals", "marker": "yesterday"}\n',
+        encoding="utf-8",
+    )
+    today_path.write_text(
+        '2026-06-12 08:00:00,000 INFO app.http {"path": '
+        '"/v1/bus-stops/83139/arrivals", "marker": "today-old"}\n'
+        '2026-06-12 08:30:00,000 INFO app.http {"path": "/v1/arrivals/batch", '
+        '"marker": "excluded"}\n'
+        '2026-06-12 09:00:00,000 INFO app.http {"path": '
+        '"/v1/bus-stops/01012/arrivals", "marker": "today-new"}\n',
+        encoding="utf-8",
+    )
 
-    assert read_recent_log_lines(str(base_path), limit=3) == [
-        "today-old",
-        "today-new",
-    ]
+    lines = read_recent_arrivals_log_lines(str(base_path), limit=3)
+
+    assert len(lines) == 2
+    assert "today-old" in lines[0]
+    assert "today-new" in lines[1]
 
 
 def test_daily_log_trim_keeps_newest_complete_lines(tmp_path, monkeypatch) -> None:

@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.services.log_service import (
     build_today_usage_summary,
     clamp_log_limit,
-    read_recent_log_lines,
+    read_recent_arrivals_log_lines,
 )
 
 router = APIRouter(prefix="/ops", tags=["ops"])
@@ -32,7 +32,7 @@ async def get_ops_logs(
         "log_file": settings.log_file_path,
         "limit": bounded_limit,
         "today": build_today_usage_summary(settings.log_file_path),
-        "lines": read_recent_log_lines(settings.log_file_path, bounded_limit),
+        "lines": read_recent_arrivals_log_lines(settings.log_file_path, bounded_limit),
     }
 
 
@@ -49,7 +49,7 @@ async def get_ops_logs_page(
 
     bounded_limit = clamp_log_limit(limit)
     today = build_today_usage_summary(settings.log_file_path)
-    lines = read_recent_log_lines(settings.log_file_path, bounded_limit)
+    lines = read_recent_arrivals_log_lines(settings.log_file_path, bounded_limit)
     return HTMLResponse(_render_logs_page(settings.log_file_path, bounded_limit, today, lines))
 
 
@@ -115,7 +115,7 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
 <body>
   <main>
     <h1>Ops Logs</h1>
-    <p class="meta">Log file: {escape(log_file)} | Recent lines: {limit} | Stats timezone: Asia/Singapore</p>
+    <p class="meta">Endpoint: /v1/bus-stops/{{bus_stop_code}}/arrivals | Log file: {escape(log_file)} | Recent lines: {limit} | Stats timezone: Asia/Singapore</p>
     <section class="stats">
       <div class="stat"><div class="label">Date</div><div class="value">{escape(today["date"])}</div></div>
       <div class="stat"><div class="label">Requests</div><div class="value">{today["request_count"]}</div></div>

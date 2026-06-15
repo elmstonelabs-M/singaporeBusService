@@ -17,16 +17,6 @@ _BUS_STOP_ARRIVALS_RE = re.compile(r"^/v1/bus-stops/[^/]+/arrivals$")
 _BUS_STOP_RE = re.compile(r"^/v1/bus-stops/[^/]+$")
 _FAVORITE_RE = re.compile(r"^/v1/favorites/[^/]+$")
 _FAVORITE_GROUP_RE = re.compile(r"^/v1/favorite-groups/[^/]+$")
-_EXCLUDED_STATS_PATHS = {
-    "/health",
-    "/health/full",
-    "/ops/logs",
-    "/v1/ops/logs",
-    "/v1/static-data/version",
-    "/v1/static-data/package",
-    "/v1/dataset/version",
-    "/v1/dataset/download",
-}
 
 
 @dataclass(frozen=True)
@@ -54,14 +44,21 @@ def get_log_files(log_file_path: str | None) -> list[Path]:
     return sorted((candidate for candidate in candidates if candidate.exists()), key=lambda p: p.name)
 
 
-def read_recent_log_lines(log_file_path: str | None, limit: int = DEFAULT_LOG_LIMIT) -> list[str]:
+def read_recent_arrivals_log_lines(
+    log_file_path: str | None,
+    limit: int = DEFAULT_LOG_LIMIT,
+) -> list[str]:
     bounded_limit = clamp_log_limit(limit)
     recent_lines: deque[str] = deque(maxlen=bounded_limit)
     today_log = get_today_log_file(log_file_path)
     if today_log is not None and today_log.exists():
         with today_log.open("r", encoding="utf-8", errors="replace") as file:
             for line in file:
-                recent_lines.append(line.rstrip("\r\n"))
+                raw_line = line.rstrip("\r\n")
+                parsed = parse_log_line(raw_line)
+                path = parsed.record.get("path") if parsed.record else None
+                if isinstance(path, str) and is_bus_stop_arrivals_path(path):
+                    recent_lines.append(raw_line)
     return list(recent_lines)
 
 
@@ -95,7 +92,7 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
             continue
 
         path = parsed.record.get("path")
-        if not isinstance(path, str) or path in _EXCLUDED_STATS_PATHS:
+        if not isinstance(path, str) or not is_bus_stop_arrivals_path(path):
             continue
 
         request_count += 1
@@ -187,7 +184,7 @@ def parse_log_line(line: str) -> ParsedLogLine:
 
 
 def normalize_endpoint_path(path: str) -> str:
-    if _BUS_STOP_ARRIVALS_RE.match(path):
+    if is_bus_stop_arrivals_path(path):
         return "/v1/bus-stops/{bus_stop_code}/arrivals"
     if _BUS_STOP_RE.match(path):
         return "/v1/bus-stops/{bus_stop_code}"
@@ -196,6 +193,10 @@ def normalize_endpoint_path(path: str) -> str:
     if _FAVORITE_GROUP_RE.match(path):
         return "/v1/favorite-groups/{group_id}"
     return path
+
+
+def is_bus_stop_arrivals_path(path: str) -> bool:
+    return _BUS_STOP_ARRIVALS_RE.fullmatch(path) is not None
 
 
 def _iter_log_lines(log_file_path: str | None):
