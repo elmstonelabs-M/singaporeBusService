@@ -39,6 +39,7 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
                             "path": "/v1/bus-stops/83139/arrivals",
                             "client": "10.0.0.1",
                             "device_id": "device-1",
+                            "device_platform": "ios",
                             "status_code": 200,
                         }
                     )
@@ -50,6 +51,7 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
                                 "path": "/v1/bus-stops/83139/arrivals",
                                 "client": "10.0.0.1",
                                 "device_id": "device-1",
+                                "device_platform": "ios",
                                 "status_code": 200,
                             }
                     )
@@ -61,6 +63,7 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
                             "path": "/v1/bus-stops/01012/arrivals",
                             "client": "10.0.0.2",
                             "device_id": "device-2",
+                            "device_platform": "android",
                             "status_code": 200,
                         }
                     )
@@ -104,6 +107,7 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
                             "path": "/v1/bus-stops/search",
                             "client": "10.0.0.3",
                             "device_id": "device-2",
+                            "device_platform": "web",
                             "status_code": 422,
                         }
                     )
@@ -139,6 +143,7 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
     assert body["today"]["request_count"] == 2
     assert body["today"]["ip_count"] == 2
     assert body["today"]["device_count"] == 2
+    assert body["today"]["platform_count"] == 2
     assert body["today"]["error_count"] == 0
     assert body["today"]["client_error_count"] == 0
     assert body["today"]["server_error_count"] == 0
@@ -160,6 +165,20 @@ async def test_ops_logs_returns_recent_lines_and_today_usage(tmp_path, monkeypat
             "request_count": 1,
         },
     ]
+    assert body["today"]["platforms"] == [
+        {
+            "platform": "ios",
+            "request_count": 1,
+            "ip_count": 1,
+            "device_count": 1,
+        },
+        {
+            "platform": "android",
+            "request_count": 1,
+            "ip_count": 1,
+            "device_count": 1,
+        },
+    ]
     assert all("/arrivals" in line for line in body["lines"])
 
 
@@ -175,6 +194,7 @@ async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
                     "path": "/v1/bus-stops/83139/arrivals",
                     "client": "10.0.0.1",
                     "device_id": "device-full-id",
+                    "device_platform": "ios",
                     "status_code": 200,
                 }
             )
@@ -193,7 +213,9 @@ async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
 
     assert response.status_code == 200
     assert "Top Endpoints" in response.text
+    assert "Platform Requests" in response.text
     assert "Device Endpoint Requests" in response.text
+    assert "ios" in response.text
     assert "device-full-id" in response.text
     assert "/v1/bus-stops/{bus_stop_code}/arrivals" in response.text
 

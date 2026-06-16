@@ -77,6 +77,18 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
     if not rows:
         rows = '<tr><td colspan="4">No app usage found for today.</td></tr>'
 
+    platform_rows = "\n".join(
+        "<tr>"
+        f"<td>{escape(item['platform'])}</td>"
+        f"<td>{item['request_count']}</td>"
+        f"<td>{item['ip_count']}</td>"
+        f"<td>{item['device_count']}</td>"
+        "</tr>"
+        for item in today["platforms"]
+    )
+    if not platform_rows:
+        platform_rows = '<tr><td colspan="4">No platform requests found for today.</td></tr>'
+
     device_rows = "\n".join(
         "<tr>"
         f"<td>{escape(item['device_id'])}</td>"
@@ -121,6 +133,7 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
       <div class="stat"><div class="label">Requests</div><div class="value">{today["request_count"]}</div></div>
       <div class="stat"><div class="label">Request IPs</div><div class="value">{today["ip_count"]}</div></div>
       <div class="stat"><div class="label">Active Devices</div><div class="value">{today["device_count"]}</div></div>
+      <div class="stat"><div class="label">Platforms</div><div class="value">{today["platform_count"]}</div></div>
       <div class="stat"><div class="label">Client Errors (4xx)</div><div class="value">{today["client_error_count"]}</div></div>
       <div class="stat"><div class="label">Server Errors (5xx)</div><div class="value">{today["server_error_count"]}</div></div>
     </section>
@@ -128,6 +141,11 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
     <table>
       <thead><tr><th>Endpoint</th><th>Requests</th><th>Request IPs</th><th>Devices</th></tr></thead>
       <tbody>{rows}</tbody>
+    </table>
+    <h2>Platform Requests</h2>
+    <table>
+      <thead><tr><th>Platform</th><th>Requests</th><th>Request IPs</th><th>Devices</th></tr></thead>
+      <tbody>{platform_rows}</tbody>
     </table>
     <h2>Device Endpoint Requests</h2>
     <table>

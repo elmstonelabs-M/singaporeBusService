@@ -79,6 +79,10 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
     server_error_count = 0
     clients: set[str] = set()
     devices: set[str] = set()
+    platforms: set[str] = set()
+    platform_counts: Counter[str] = Counter()
+    platform_clients: dict[str, set[str]] = defaultdict(set)
+    platform_devices: dict[str, set[str]] = defaultdict(set)
     endpoint_counts: Counter[str] = Counter()
     endpoint_clients: dict[str, set[str]] = defaultdict(set)
     endpoint_devices: dict[str, set[str]] = defaultdict(set)
@@ -102,6 +106,10 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
         device_id = parsed.record.get("device_id")
         if isinstance(device_id, str) and device_id:
             devices.add(device_id)
+        device_platform = parsed.record.get("device_platform")
+        platform = device_platform if isinstance(device_platform, str) and device_platform else "Unknown"
+        if platform != "Unknown":
+            platforms.add(platform)
 
         status_code = parsed.record.get("status_code")
         if isinstance(status_code, int) and 400 <= status_code < 500:
@@ -116,10 +124,13 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
 
         endpoint = normalize_endpoint_path(path)
         endpoint_counts[endpoint] += 1
+        platform_counts[platform] += 1
         if isinstance(client, str) and client:
             endpoint_clients[endpoint].add(client)
+            platform_clients[platform].add(client)
         if isinstance(device_id, str) and device_id:
             endpoint_devices[endpoint].add(device_id)
+            platform_devices[platform].add(device_id)
             device_endpoint_counts[(device_id, endpoint)] += 1
 
     endpoints = [
@@ -139,6 +150,15 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
         }
         for (device_id, endpoint), count in device_endpoint_counts.most_common(100)
     ]
+    platform_stats = [
+        {
+            "platform": platform,
+            "request_count": count,
+            "ip_count": len(platform_clients[platform]),
+            "device_count": len(platform_devices[platform]),
+        }
+        for platform, count in platform_counts.most_common()
+    ]
 
     return {
         "date": today.isoformat(),
@@ -146,11 +166,13 @@ def build_today_usage_summary(log_file_path: str | None) -> dict:
         "request_count": request_count,
         "ip_count": len(clients),
         "device_count": len(devices),
+        "platform_count": len(platforms),
         "error_count": error_count,
         "client_error_count": client_error_count,
         "server_error_count": server_error_count,
         "top_endpoints": endpoints,
         "device_endpoints": device_endpoints,
+        "platforms": platform_stats,
     }
 
 

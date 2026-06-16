@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from pathlib import Path
 from time import perf_counter
 from typing import Any
-import uuid
 
 from fastapi import Request, Response
 
@@ -149,6 +149,13 @@ def _get_device_id(request: Request, request_body: Any) -> str | None:
     return None
 
 
+def _get_device_platform(request: Request) -> str | None:
+    device_platform = request.headers.get("x-device-platform")
+    if device_platform and device_platform.strip():
+        return device_platform.strip()
+    return None
+
+
 def _response_body_for_log(path: str, response_body: Any) -> Any:
     if not (
         path.startswith(BUS_STOP_ARRIVALS_PATH_PREFIX)
@@ -177,6 +184,7 @@ async def http_logging_middleware(
     started_at = perf_counter()
     request_body = _decode_payload(await request.body(), request.headers.get("content-type"))
     device_id = _get_device_id(request, request_body)
+    device_platform = _get_device_platform(request)
 
     try:
         response = await call_next(request)
@@ -191,6 +199,7 @@ async def http_logging_middleware(
                     "query": request.url.query or None,
                     "client": client_ip,
                     "device_id": device_id,
+                    "device_platform": device_platform,
                     "request_body": request_body,
                     "error": {
                         "type": exc.__class__.__name__,
@@ -219,6 +228,7 @@ async def http_logging_middleware(
                 "query": request.url.query or None,
                 "client": client_ip,
                 "device_id": device_id,
+                "device_platform": device_platform,
                 "request_body": request_body,
                 "status_code": response.status_code,
                 "response_body": logged_response_body,

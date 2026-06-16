@@ -90,6 +90,7 @@ def test_http_logging_prefers_forwarded_client_ip() -> None:
                     headers={
                         "x-forwarded-for": "203.0.113.10, 10.0.0.2",
                         "x-device-id": "header-device",
+                        "x-device-platform": "ios",
                     },
                 )
 
@@ -100,6 +101,7 @@ def test_http_logging_prefers_forwarded_client_ip() -> None:
         log_text = _read_dated_log(log_path)
         assert '"client": "203.0.113.10"' in log_text
         assert '"device_id": "header-device"' in log_text
+        assert '"device_platform": "ios"' in log_text
 
         logging.shutdown()
 
