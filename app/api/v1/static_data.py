@@ -138,36 +138,22 @@ async def get_static_data_package(
 @dataset_router.get(
     "/version",
     response_model=ApiResponse[DatasetVersionPayload],
-    summary="Get client SQLite dataset version",
+    summary="Get client dataset version",
     description=(
         "Compatibility endpoint for the Flutter static dataset flow. It exposes "
         "the same underlying static data version with field names expected by "
-        "the client-side SQLite package updater."
+        "the client-side package updater."
     ),
 )
 async def get_dataset_version(
     service: StaticDataService = Depends(get_static_data_service),
 ) -> ApiResponse[DatasetVersionPayload]:
-    manifest = _read_dataset_manifest()
-    if manifest is not None:
-        updated_at = manifest["generated_at"]
-        return ApiResponse(
-            data=DatasetVersionPayload(
-                version=manifest["version"],
-                database_url="/v1/dataset/download",
-                sha256=manifest["sha256"],
-                force_update=manifest.get("force_update", False),
-                updated_at=updated_at,
-            ),
-            meta=MetaResponse(updated_at=updated_at),
-        )
-
     payload, generated_at = await service.get_version_payload()
     checksum = payload.checksum.removeprefix("sha256:")
     return ApiResponse(
         data=DatasetVersionPayload(
             version=payload.version,
-            database_url="/v1/dataset/download",
+            database_url="/v1/static-data/package",
             sha256=checksum,
             force_update=False,
             updated_at=generated_at,

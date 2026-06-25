@@ -45,7 +45,7 @@ async def test_dataset_version_endpoint(api_client, db_session) -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["data"]["database_url"] == "/v1/dataset/download"
+    assert body["data"]["database_url"] == "/v1/static-data/package"
     assert len(body["data"]["sha256"]) == 64
     assert body["data"]["force_update"] is False
     assert body["data"]["updated_at"] == body["meta"]["updated_at"]
