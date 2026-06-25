@@ -33,6 +33,7 @@ class FeedbackService:
             app_version=payload.app_version,
             device_info=payload.device_info,
             email_status="pending",
+            created_at=singapore_now(),
         )
         self.db.add(feedback)
         await self.db.commit()

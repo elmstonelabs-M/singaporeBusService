@@ -30,6 +30,7 @@ from app.services.favorite_service import FavoriteService
 from app.services.feedback_email_service import FeedbackEmailService
 from app.services.feedback_service import FeedbackService
 from app.services.home_service import HomeService
+from app.services.retention_service import RetentionService, get_retention_service
 
 
 class FakeFeedbackEmailService(FeedbackEmailService):
@@ -106,6 +107,9 @@ async def api_client(
     def _feedback_service() -> FeedbackService:
         return FeedbackService(db=db_session, email_service=feedback_email_service)
 
+    def _retention_service() -> RetentionService:
+        return RetentionService(cache=cache_service)
+
     async def _db_override() -> AsyncIterator[AsyncSession]:
         yield db_session
 
@@ -117,6 +121,8 @@ async def api_client(
     app.dependency_overrides[get_home_service] = _home_service
     app.dependency_overrides[get_feedback_email_service] = _feedback_email_service
     app.dependency_overrides[get_feedback_service] = _feedback_service
+    app.dependency_overrides[get_retention_service] = _retention_service
+    app.state.retention_service = _retention_service()
 
     async with AsyncClient(
         transport=ASGITransport(app=app),
@@ -124,4 +130,6 @@ async def api_client(
     ) as client:
         yield client
 
+    if hasattr(app.state, "retention_service"):
+        delattr(app.state, "retention_service")
     app.dependency_overrides.clear()

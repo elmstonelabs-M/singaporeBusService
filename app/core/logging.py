@@ -9,8 +9,10 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 
-from fastapi import Request, Response
+from fastapi import FastAPI, Request, Response
+from starlette.background import BackgroundTasks
 
+from app.services.retention_service import get_retention_service
 from app.utils.request import get_client_ip
 from app.utils.time_utils import SINGAPORE_TZ
 
@@ -156,6 +158,22 @@ def _get_device_platform(request: Request) -> str | None:
     return None
 
 
+async def _track_retention_activity(
+    app: FastAPI,
+    device_id: str | None,
+    path: str,
+    status_code: int | None,
+) -> None:
+    retention_service = getattr(app.state, "retention_service", None)
+    if retention_service is None:
+        retention_service = get_retention_service()
+    await retention_service.track_activity(
+        device_id=device_id,
+        path=path,
+        status_code=status_code,
+    )
+
+
 def _response_body_for_log(path: str, response_body: Any) -> Any:
     if not (
         path.startswith(BUS_STOP_ARRIVALS_PATH_PREFIX)
@@ -215,7 +233,10 @@ async def http_logging_middleware(
     async for chunk in response.body_iterator:
         response_body_bytes.extend(chunk)
 
-    response_body = _decode_payload(bytes(response_body_bytes), response.headers.get("content-type"))
+    response_body = _decode_payload(
+        bytes(response_body_bytes),
+        response.headers.get("content-type"),
+    )
     logged_response_body = _response_body_for_log(request.url.path, response_body)
     duration_ms = round((perf_counter() - started_at) * 1000, 2)
 
@@ -237,11 +258,22 @@ async def http_logging_middleware(
         )
     )
 
+    background = BackgroundTasks()
+    if response.background is not None:
+        background.add_task(response.background)
+    background.add_task(
+        _track_retention_activity,
+        request.app,
+        device_id,
+        request.url.path,
+        response.status_code,
+    )
+
     new_response = Response(
         content=bytes(response_body_bytes),
         status_code=response.status_code,
         media_type=response.media_type,
-        background=response.background,
+        background=background,
     )
     for header_name, header_value in response.headers.items():
         if header_name.lower() in {"content-length", "content-type"}:
