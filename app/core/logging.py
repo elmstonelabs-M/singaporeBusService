@@ -161,6 +161,7 @@ def _get_device_platform(request: Request) -> str | None:
 async def _track_retention_activity(
     app: FastAPI,
     device_id: str | None,
+    device_platform: str | None,
     path: str,
     status_code: int | None,
 ) -> None:
@@ -169,6 +170,7 @@ async def _track_retention_activity(
         retention_service = get_retention_service()
     await retention_service.track_activity(
         device_id=device_id,
+        device_platform=device_platform,
         path=path,
         status_code=status_code,
     )
@@ -265,6 +267,7 @@ async def http_logging_middleware(
         _track_retention_activity,
         request.app,
         device_id,
+        device_platform,
         request.url.path,
         response.status_code,
     )

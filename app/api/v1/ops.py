@@ -14,6 +14,7 @@ from app.services.log_service import (
 )
 from app.services.retention_service import (
     RETENTION_DAYS,
+    RETENTION_PLATFORMS,
     RetentionService,
     get_retention_service,
 )
@@ -47,6 +48,7 @@ async def get_ops_logs(
 async def get_ops_retention(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
+    platform: str = Query(default="all"),
     token: str | None = Query(default=None),
     x_ops_token: str | None = Header(default=None, alias="X-Ops-Token"),
     service: RetentionService = Depends(get_retention_service),
@@ -54,7 +56,11 @@ async def get_ops_retention(
     settings = get_settings()
     _ensure_authorized(settings.ops_log_token, token, x_ops_token)
     resolved_start_date, resolved_end_date = _resolve_retention_dates(start_date, end_date)
-    return await service.get_retention_range(resolved_start_date, resolved_end_date)
+    return await service.get_retention_range(
+        resolved_start_date,
+        resolved_end_date,
+        platform=platform,
+    )
 
 
 @page_router.get("/ops/logs", response_class=HTMLResponse, include_in_schema=False)
@@ -78,6 +84,7 @@ async def get_ops_logs_page(
 async def get_ops_retention_page(
     start_date: date | None = Query(default=None),
     end_date: date | None = Query(default=None),
+    platform: str = Query(default="all"),
     token: str | None = Query(default=None),
     x_ops_token: str | None = Header(default=None, alias="X-Ops-Token"),
     service: RetentionService = Depends(get_retention_service),
@@ -85,8 +92,12 @@ async def get_ops_retention_page(
     settings = get_settings()
     _ensure_authorized(settings.ops_log_token, token, x_ops_token)
     resolved_start_date, resolved_end_date = _resolve_retention_dates(start_date, end_date)
-    payload = await service.get_retention_range(resolved_start_date, resolved_end_date)
-    return HTMLResponse(_render_retention_page(payload))
+    payload = await service.get_retention_range(
+        resolved_start_date,
+        resolved_end_date,
+        platform=platform,
+    )
+    return HTMLResponse(_render_retention_page(payload, token))
 
 
 def _ensure_authorized(
@@ -228,11 +239,20 @@ def _render_stat_card(label: str, value: object) -> str:
     )
 
 
-def _render_retention_page(payload: dict) -> str:
+def _render_retention_page(payload: dict, token: str | None) -> str:
     day_headers = "".join(f"<th>{day}D</th>" for day in RETENTION_DAYS)
     rows = "\n".join(_render_retention_row(row) for row in payload["rows"])
     if not rows:
         rows = f'<tr><td colspan="{len(RETENTION_DAYS) + 2}">No retention data found.</td></tr>'
+    platform_options = "\n".join(
+        _render_platform_option(platform, payload["platform"])
+        for platform in RETENTION_PLATFORMS
+    )
+    token_input = (
+        f'<input type="hidden" name="token" value="{escape(token)}">'
+        if token
+        else ""
+    )
 
     return f"""<!doctype html>
 <html lang="en">
@@ -257,6 +277,10 @@ def _render_retention_page(payload: dict) -> str:
     th:first-child, td:first-child {{ text-align: left; }}
     .meta {{ color: #5b6776; font-size: 13px; }}
     .muted {{ color: #8792a2; }}
+    .toolbar {{ display: flex; gap: 12px; align-items: end; margin: 16px 0; }}
+    label {{ display: grid; gap: 6px; color: #5b6776; font-size: 13px; }}
+    select, input {{ padding: 8px 10px; border: 1px solid #cfd8e3; border-radius: 6px; }}
+    button {{ padding: 8px 14px; border: 1px solid #95a3b8; border-radius: 6px; background: #fff; }}
   </style>
 </head>
 <body>
@@ -266,6 +290,24 @@ def _render_retention_page(payload: dict) -> str:
       Range: {escape(payload["start_date"])} to {escape(payload["end_date"])} |
       Timezone: {escape(payload["timezone"])}
     </p>
+    <form class="toolbar" method="get">
+      {token_input}
+      <label>
+        Platform
+        <select name="platform">
+          {platform_options}
+        </select>
+      </label>
+      <label>
+        Start Date
+        <input type="date" name="start_date" value="{escape(payload["start_date"])}">
+      </label>
+      <label>
+        End Date
+        <input type="date" name="end_date" value="{escape(payload["end_date"])}">
+      </label>
+      <button type="submit">Apply</button>
+    </form>
     <table>
       <thead><tr><th>Date</th><th>New Users</th>{day_headers}</tr></thead>
       <tbody>{rows}</tbody>
@@ -273,6 +315,17 @@ def _render_retention_page(payload: dict) -> str:
   </main>
 </body>
 </html>"""
+
+
+def _render_platform_option(platform: str, selected_platform: str) -> str:
+    labels = {
+        "all": "All",
+        "ios": "iOS",
+        "android": "Android",
+        "unknown": "Unknown",
+    }
+    selected = " selected" if platform == selected_platform else ""
+    return f'<option value="{platform}"{selected}>{labels.get(platform, platform)}</option>'
 
 
 def _render_retention_row(row: dict) -> str:
