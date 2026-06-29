@@ -214,9 +214,8 @@ async def test_ops_logs_page_renders_summary(tmp_path, monkeypatch) -> None:
     assert response.status_code == 200
     assert "Top Endpoints" in response.text
     assert "Platform Requests" in response.text
-    assert "Device Endpoint Requests" in response.text
+    assert "Device Endpoint Requests" not in response.text
     assert "ios" in response.text
-    assert "device-full-id" in response.text
     assert "/v1/bus-stops/{bus_stop_code}/arrivals" in response.text
 
 

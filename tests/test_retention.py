@@ -223,6 +223,7 @@ async def test_ops_retention_page_renders_platform_filter(api_client, monkeypatc
     assert response.status_code == 200
     assert 'name="platform"' in response.text
     assert '<option value="unknown" selected>Unknown</option>' in response.text
+    assert '<button type="submit">查询</button>' in response.text
 
 
 async def test_middleware_tracks_device_activity_without_changing_response(

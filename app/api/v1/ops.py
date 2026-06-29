@@ -146,17 +146,6 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
     if not platform_rows:
         platform_rows = '<tr><td colspan="4">No platform requests found for today.</td></tr>'
 
-    device_rows = "\n".join(
-        "<tr>"
-        f"<td>{escape(item['device_id'])}</td>"
-        f"<td>{escape(item['endpoint'])}</td>"
-        f"<td>{item['request_count']}</td>"
-        "</tr>"
-        for item in today["device_endpoints"]
-    )
-    if not device_rows:
-        device_rows = '<tr><td colspan="3">No device requests found for today.</td></tr>'
-
     log_text = escape("\n".join(reversed(lines)))
     stats_cards = "\n".join(
         [
@@ -218,11 +207,6 @@ def _render_logs_page(log_file: str, limit: int, today: dict, lines: list[str]) 
       <thead><tr><th>Platform</th><th>Requests</th><th>Request IPs</th><th>Devices</th></tr></thead>
       <tbody>{platform_rows}</tbody>
     </table>
-    <h2>Device Endpoint Requests</h2>
-    <table>
-      <thead><tr><th>Device ID</th><th>Endpoint</th><th>Requests</th></tr></thead>
-      <tbody>{device_rows}</tbody>
-    </table>
     <h2>Recent Logs</h2>
     <pre>{log_text}</pre>
   </main>
@@ -280,7 +264,15 @@ def _render_retention_page(payload: dict, token: str | None) -> str:
     .toolbar {{ display: flex; gap: 12px; align-items: end; margin: 16px 0; }}
     label {{ display: grid; gap: 6px; color: #5b6776; font-size: 13px; }}
     select, input {{ padding: 8px 10px; border: 1px solid #cfd8e3; border-radius: 6px; }}
-    button {{ padding: 8px 14px; border: 1px solid #95a3b8; border-radius: 6px; background: #fff; }}
+    button {{
+      padding: 8px 14px;
+      border: 1px solid #95a3b8;
+      border-radius: 6px;
+      background: #fff;
+      color: #17202a;
+      cursor: pointer;
+      font: inherit;
+    }}
   </style>
 </head>
 <body>
@@ -306,7 +298,7 @@ def _render_retention_page(payload: dict, token: str | None) -> str:
         End Date
         <input type="date" name="end_date" value="{escape(payload["end_date"])}">
       </label>
-      <button type="submit">Apply</button>
+      <button type="submit">查询</button>
     </form>
     <table>
       <thead><tr><th>Date</th><th>New Users</th>{day_headers}</tr></thead>
