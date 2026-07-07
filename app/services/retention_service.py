@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
@@ -114,6 +116,20 @@ class RetentionService:
             )
             cursor += timedelta(days=1)
 
+        engagement = await self.get_engagement_range(
+            start_date,
+            end_date,
+            platform=normalized_platform,
+        )
+        await self._attach_cohort_details(
+            rows,
+            start_date=start_date,
+            end_date=end_date,
+            platform=normalized_platform,
+            activity_sets=engagement["activity_sets"],
+        )
+        engagement.pop("activity_sets", None)
+
         return {
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
@@ -121,7 +137,60 @@ class RetentionService:
             "platform": normalized_platform,
             "platforms": list(RETENTION_PLATFORMS),
             "retention_days": list(RETENTION_DAYS),
+            "engagement": engagement,
             "rows": rows,
+        }
+
+    async def get_engagement_range(
+        self,
+        start_date: date,
+        end_date: date,
+        *,
+        platform: str = "all",
+    ) -> dict[str, Any]:
+        normalized_platform = normalize_retention_platform(platform, default="all")
+        preload_start_date = start_date - timedelta(days=29)
+        activity_sets = await self._activity_sets(
+            preload_start_date,
+            end_date,
+            normalized_platform,
+        )
+        new_user_counts = await self._new_user_counts(start_date, end_date, normalized_platform)
+
+        weekly_users: Counter[str] = Counter()
+        monthly_users: Counter[str] = Counter()
+        rows: list[dict[str, Any]] = []
+        cursor = preload_start_date
+        while cursor <= end_date:
+            active_users = activity_sets.get(cursor, set())
+            _add_users(weekly_users, active_users)
+            _add_users(monthly_users, active_users)
+
+            _remove_users(weekly_users, activity_sets.get(cursor - timedelta(days=7), set()))
+            _remove_users(monthly_users, activity_sets.get(cursor - timedelta(days=30), set()))
+
+            if cursor >= start_date:
+                dau = len(active_users)
+                wau = len(weekly_users)
+                mau = len(monthly_users)
+                rows.append(
+                    {
+                        "date": cursor.isoformat(),
+                        "dau": dau,
+                        "wau": wau,
+                        "mau": mau,
+                        "dau_mau_rate": _ratio(dau, mau),
+                        "wau_mau_rate": _ratio(wau, mau),
+                        "new_users": new_user_counts.get(cursor, 0),
+                    }
+                )
+            cursor += timedelta(days=1)
+
+        overview = rows[-1] if rows else _empty_engagement_row(end_date)
+        return {
+            "overview": overview,
+            "rows": rows,
+            "activity_sets": activity_sets,
         }
 
     async def get_retention(
@@ -177,6 +246,82 @@ class RetentionService:
                 },
             }
 
+    async def _activity_sets(
+        self,
+        start_date: date,
+        end_date: date,
+        platform: str,
+    ) -> dict[date, set[str]]:
+        dates = list(_date_range(start_date, end_date))
+        if not dates:
+            return {}
+
+        pipeline = self.cache.client.pipeline(transaction=False)
+        for current_date in dates:
+            pipeline.smembers(_active_key(current_date.isoformat(), platform))
+        results = await pipeline.execute()
+        return {
+            current_date: set(result or [])
+            for current_date, result in zip(dates, results, strict=True)
+        }
+
+    async def _new_user_counts(
+        self,
+        start_date: date,
+        end_date: date,
+        platform: str,
+    ) -> dict[date, int]:
+        dates = list(_date_range(start_date, end_date))
+        if not dates:
+            return {}
+
+        pipeline = self.cache.client.pipeline(transaction=False)
+        for current_date in dates:
+            pipeline.scard(_cohort_key(current_date.isoformat(), platform))
+        results = await pipeline.execute()
+        return {
+            current_date: int(result or 0)
+            for current_date, result in zip(dates, results, strict=True)
+        }
+
+    async def _cohort_members(
+        self,
+        rows: list[dict[str, Any]],
+        platform: str,
+    ) -> dict[str, set[str]]:
+        if not rows:
+            return {}
+
+        pipeline = self.cache.client.pipeline(transaction=False)
+        for row in rows:
+            pipeline.smembers(_cohort_key(row["cohort_date"], platform))
+        results = await pipeline.execute()
+        return {
+            row["cohort_date"]: set(result or [])
+            for row, result in zip(rows, results, strict=True)
+        }
+
+    async def _attach_cohort_details(
+        self,
+        rows: list[dict[str, Any]],
+        *,
+        start_date: date,
+        end_date: date,
+        platform: str,
+        activity_sets: dict[date, set[str]],
+    ) -> None:
+        cohort_members = await self._cohort_members(rows, platform)
+        for row in rows:
+            install_date = date.fromisoformat(row["cohort_date"])
+            members = cohort_members.get(row["cohort_date"], set())
+            row["detail"] = _cohort_detail(
+                row,
+                members=members,
+                start_date=max(start_date, install_date),
+                end_date=end_date,
+                activity_sets=activity_sets,
+            )
+
     async def _retention_metric(
         self,
         *,
@@ -209,6 +354,88 @@ class RetentionService:
 
 def get_retention_service() -> RetentionService:
     return RetentionService(get_cache_service())
+
+
+def _cohort_detail(
+    row: dict[str, Any],
+    *,
+    members: set[str],
+    start_date: date,
+    end_date: date,
+    activity_sets: dict[date, set[str]],
+) -> dict[str, Any]:
+    active_day_counts: Counter[str] = Counter()
+    latest_active_by_user: dict[str, date] = {}
+    latest_active_date: date | None = None
+
+    cursor = start_date
+    while cursor <= end_date:
+        active_members = members.intersection(activity_sets.get(cursor, set()))
+        if active_members:
+            latest_active_date = cursor
+            for user_id in active_members:
+                active_day_counts[user_id] += 1
+                latest_active_by_user[user_id] = cursor
+        cursor += timedelta(days=1)
+
+    average_active_days = None
+    if members:
+        average_active_days = round(sum(active_day_counts.values()) / len(members), 1)
+
+    return {
+        "install_date": row["cohort_date"],
+        "new_users": row["new_users"],
+        "d1_rate": _retention_rate(row, 1),
+        "d3_rate": _retention_rate(row, 3),
+        "d7_rate": _retention_rate(row, 7),
+        "current_active_users": len(latest_active_by_user),
+        "average_active_days": average_active_days,
+        "latest_active_date": latest_active_date.isoformat() if latest_active_date else None,
+    }
+
+
+def _retention_rate(row: dict[str, Any], day: int) -> float | None:
+    metric = row["retention"].get(str(day))
+    if not metric:
+        return None
+    return metric["rate"]
+
+
+def _empty_engagement_row(row_date: date) -> dict[str, Any]:
+    return {
+        "date": row_date.isoformat(),
+        "dau": 0,
+        "wau": 0,
+        "mau": 0,
+        "dau_mau_rate": None,
+        "wau_mau_rate": None,
+        "new_users": 0,
+    }
+
+
+def _add_users(counter: Counter[str], users: set[str]) -> None:
+    for user_id in users:
+        counter[user_id] += 1
+
+
+def _remove_users(counter: Counter[str], users: set[str]) -> None:
+    for user_id in users:
+        counter[user_id] -= 1
+        if counter[user_id] <= 0:
+            del counter[user_id]
+
+
+def _ratio(numerator: int, denominator: int) -> float | None:
+    if not denominator:
+        return None
+    return round(numerator / denominator, 4)
+
+
+def _date_range(start_date: date, end_date: date) -> Iterator[date]:
+    cursor = start_date
+    while cursor <= end_date:
+        yield cursor
+        cursor += timedelta(days=1)
 
 
 def should_track_activity(

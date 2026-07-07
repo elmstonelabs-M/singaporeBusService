@@ -149,6 +149,44 @@ async def test_retention_range_returns_requested_columns(cache_service) -> None:
     }
 
 
+async def test_retention_range_returns_engagement_and_cohort_detail(cache_service) -> None:
+    service = RetentionService(cache=cache_service)
+
+    await service.track_activity("device-1", "/v1/home", 200, activity_date=date(2026, 6, 1))
+    await service.track_activity("device-2", "/v1/home", 200, activity_date=date(2026, 6, 2))
+    await service.track_activity("device-1", "/v1/home", 200, activity_date=date(2026, 6, 3))
+    await service.track_activity("device-1", "/v1/home", 200, activity_date=date(2026, 6, 8))
+    await service.track_activity("device-3", "/v1/home", 200, activity_date=date(2026, 6, 8))
+
+    payload = await service.get_retention_range(
+        date(2026, 6, 1),
+        date(2026, 6, 8),
+        today=date(2026, 6, 8),
+    )
+
+    overview = payload["engagement"]["overview"]
+    assert overview == {
+        "date": "2026-06-08",
+        "dau": 2,
+        "wau": 3,
+        "mau": 3,
+        "dau_mau_rate": 0.6667,
+        "wau_mau_rate": 1.0,
+        "new_users": 1,
+    }
+    first_cohort = payload["rows"][0]
+    assert first_cohort["detail"] == {
+        "install_date": "2026-06-01",
+        "new_users": 1,
+        "d1_rate": 0.0,
+        "d3_rate": 0.0,
+        "d7_rate": 1.0,
+        "current_active_users": 1,
+        "average_active_days": 3.0,
+        "latest_active_date": "2026-06-08",
+    }
+
+
 async def test_ops_retention_requires_token(api_client, monkeypatch) -> None:
     settings = get_settings()
     monkeypatch.setattr(settings, "ops_log_token", "secret")
@@ -210,6 +248,8 @@ async def test_ops_retention_filters_by_platform(api_client, cache_service, monk
     assert body["platform"] == "ios"
     assert body["platforms"] == ["all", "ios", "android", "unknown"]
     assert body["rows"][0]["new_users"] == 1
+    assert body["engagement"]["overview"]["dau"] == 1
+    assert body["engagement"]["rows"][0]["new_users"] == 1
 
 
 async def test_ops_retention_page_renders_platform_filter(api_client, monkeypatch) -> None:
@@ -221,9 +261,14 @@ async def test_ops_retention_page_renders_platform_filter(api_client, monkeypatc
     )
 
     assert response.status_code == 200
+    assert "Retention & Engagement" in response.text
     assert 'name="platform"' in response.text
     assert '<option value="unknown" selected>Unknown</option>' in response.text
-    assert '<button type="submit">查询</button>' in response.text
+    assert "Active Users Trend" in response.text
+    assert "Daily Active Statistics" in response.text
+    assert "Cohort Retention" in response.text
+    assert 'id="cohort-drawer"' in response.text
+    assert "&#26597;&#35810;" in response.text
 
 
 async def test_middleware_tracks_device_activity_without_changing_response(
